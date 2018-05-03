@@ -236,6 +236,48 @@ def curveRi(span_u, knot_u, degree_u, knotvec_u, weights):
     curveRi = Nip / denominator
     return curveRi
 
+
+# Compute the composite basis function R_ij(u,v) for a 2 parameter NURBS surface
+def surfRij(span_u, span_v, knot_u, knot_v, degree_u, degree_v, knotvec_u, knotvec_v, weights):
+    """Computes the composite basis function R_ij(u,v) at spans i,j and parameters u,v
+    for a 2 paramter NURBS surface.
+
+    :param span_u: u direction knot span associated with desired basis function
+    :type span_u: int
+    :param span_v: v direction knot span associated with desired basis function
+    :type span_v: int
+    :param knot_u: u direction knot value at which to evaluate desired basis function. range: [0,1]
+    :type knot_u: float
+    :param knot_v: v direction knot value at which to evaluate desired basis function. range: [0,1]
+    :type knot_v: float
+    :param degree_u: u direction degree of desired basis function
+    :type degree_u: int
+    :param degree_v: v direction degree of desired basis function
+    :type degree_v: int
+    :param knotvec_u: u direction knot vector associated with desired basis function
+    :type knotvec_u: tuple, list
+    :param knotvec_v: v direction knot vector associated with desired basis function
+    :type knotvec_v: tuple, list
+    :param weights: control point weights
+    :type weights: tuple, list
+    :return: value of R_ij(u,v)
+    :rtype: float
+
+    """
+    Nip = one_basis_function(degree_u, knotvec_u, span_u, knot_u)
+    Njq = one_basis_function(degree_v, knotvec_v, span_v, knot_v)
+
+    denominator = 0.0
+    for n in range(0, len(knotvec_u) - degree_u - 1):
+        Nkp = one_basis_function(degree_u, knotvec_u, n, knot_u)
+        for m in range(0, len(knotvec_v) - degree_v - 1):
+            Nlq = one_basis_function(degree_v, knotvec_v, m, knot_v)
+            denominator += Nkp * Nlq * weights[n + m]
+
+    surfRij = (Nip * Njq) / denominator
+
+    return surfRij
+
 def basis_function_ders(degree, knot_vector, span, knot, order):
     """ Finds derivatives of the basis functions.
 
