@@ -206,6 +206,36 @@ def one_basis_function(degree, knot_vec, span, knot):
 
     return Nip
 
+
+# Compute the composite basis function R_i(u) for a 1 parameter NURBS curve
+def curveRi(span_u, knot_u, degree_u, knotvec_u, weights):
+    """Computes the composite basis function R_i(u) at span i and parameter u
+    for a 1 parameter NURBS curve.
+
+    :param span_u: knot span associated with desired basis function
+    :type span_u: int
+    :param knot_u: knot value at which to evaluate desired basis function. range: [0,1]
+    :type knot_u: float
+    :param degree_u: degree of desired basis function
+    :type degree_u: int
+    :param knotvec_u: knot vector associated with desired basis function
+    :type knotvec_u: tuple, list
+    :param weights: control point weights
+    :type weights: ltuple, list
+    :return: value of R_i(u)
+    :rtype: float
+
+    """
+    Nip = one_basis_function(degree_u, knotvec_u, span_u, knot_u)
+
+    denominator = 0.0
+    for n in range(0, len(knotvec_u) - degree_u - 1):
+        Nkp = one_basis_function(degree_u, knotvec_u, n, knot_u)
+        denominator += Nkp * weights[n]
+
+    curveRi = Nip / denominator
+    return curveRi
+
 def basis_function_ders(degree, knot_vector, span, knot, order):
     """ Finds derivatives of the basis functions.
 
