@@ -155,6 +155,57 @@ def basis_function_all(degree, knot_vector, span, knot):
     return N
 
 
+# Algorithm A2.4 (fitting functionality)
+def one_basis_function(degree, knot_vec, span, knot):
+    """ Algorithm A2.4 of The NURBS Book by Piegel & Tiller.
+
+    :param degree: degree of desired basis function
+    :type degree: int
+    :param knot_vec: knot vector associated with desired basis function
+    :type knot_vec: tuple, list
+    :param span: knot span associated with desired basis function
+    :type span: int
+    :param knot: knot value at which to evaluate desired basis function. range: [0,1]
+    :type knot: float
+    :return: value of R_i(u)
+    :rtype: float
+
+    """
+    N = [None] * (degree + 1)
+    if (span == 0 and knot == knot_vec[0]):
+        Nip = 1.0
+    elif (span == len(knot_vec) - degree - 2 and knot == knot_vec[len(knot_vec) - 1]):
+        Nip = 1.0
+    elif (knot < knot_vec[span]):
+        Nip = 0.0
+    elif (knot >= knot_vec[span + degree + 1]):
+        Nip = 0.0
+    else:
+        for j in range(0, degree + 1):
+            if (knot >= knot_vec[span + j] and knot < knot_vec[span + j + 1]):
+                N[j] = 1.0
+            else:
+                N[j] = 0.0
+        for k in range(1, degree + 1):
+            if (N[0] == 0.0):
+                saved = 0.0
+            else:
+                saved = ((knot - knot_vec[span]) * N[0]) / (knot_vec[span + k] - knot_vec[span])
+            for j in range(0, degree - k + 1):
+                Uleft = knot_vec[span + j + 1]
+                Uright = knot_vec[span + j + k + 1]
+                if (N[j + 1] == 0.0):
+                    N[j] = saved
+                    saved = 0.0
+                else:
+                    temp = N[j + 1] / (Uright - Uleft)
+                    N[j] = saved + (Uright - knot) * temp
+                    saved = (knot - Uleft) * temp
+
+            Nip = N[0]
+
+    return Nip
+
 def basis_function_ders(degree, knot_vector, span, knot, order):
     """ Finds derivatives of the basis functions.
 
