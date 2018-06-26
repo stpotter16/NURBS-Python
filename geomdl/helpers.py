@@ -168,6 +168,128 @@ def basis_function_all(degree, knot_vector, span, knot):
             N[j][i] = bfuns[j]
     return N
 
+# Algorithm A2.4 (fitting functionality)
+def one_basis_function(degree, knot_vec, span, knot):
+    """ Algorithm A2.4 of The NURBS Book by Piegel & Tiller.
+
+    :param degree: degree of desired basis function
+    :type degree: int
+    :param knot_vec: knot vector associated with desired basis function
+    :type knot_vec: tuple, list
+    :param span: knot span associated with desired basis function
+    :type span: int
+    :param knot: knot value at which to evaluate desired basis function. range: [0,1]
+    :type knot: float
+    :return: value of R_i(u)
+    :rtype: float
+
+    """
+    N = [None] * (degree + 1)
+    if (span == 0 and knot == knot_vec[0]):
+        Nip = 1.0
+    elif (span == len(knot_vec) - degree - 2 and knot == knot_vec[len(knot_vec) - 1]):
+        Nip = 1.0
+    elif (knot < knot_vec[span]):
+        Nip = 0.0
+    elif (knot >= knot_vec[span + degree + 1]):
+        Nip = 0.0
+    else:
+        for j in range(0, degree + 1):
+            if (knot >= knot_vec[span + j] and knot < knot_vec[span + j + 1]):
+                N[j] = 1.0
+            else:
+                N[j] = 0.0
+        for k in range(1, degree + 1):
+            if (N[0] == 0.0):
+                saved = 0.0
+            else:
+                saved = ((knot - knot_vec[span]) * N[0]) / (knot_vec[span + k] - knot_vec[span])
+            for j in range(0, degree - k + 1):
+                Uleft = knot_vec[span + j + 1]
+                Uright = knot_vec[span + j + k + 1]
+                if (N[j + 1] == 0.0):
+                    N[j] = saved
+                    saved = 0.0
+                else:
+                    temp = N[j + 1] / (Uright - Uleft)
+                    N[j] = saved + (Uright - knot) * temp
+                    saved = (knot - Uleft) * temp
+
+            Nip = N[0]
+
+    return Nip
+
+
+# Compute the composite basis function R_i(u) for a 1 parameter NURBS curve
+def curveRi(span_u, knot_u, degree_u, knotvec_u, weights):
+    """Computes the composite basis function R_i(u) at span i and parameter u
+    for a 1 parameter NURBS curve.
+
+    :param span_u: knot span associated with desired basis function
+    :type span_u: int
+    :param knot_u: knot value at which to evaluate desired basis function. range: [0,1]
+    :type knot_u: float
+    :param degree_u: degree of desired basis function
+    :type degree_u: int
+    :param knotvec_u: knot vector associated with desired basis function
+    :type knotvec_u: tuple, list
+    :param weights: control point weights
+    :type weights: ltuple, list
+    :return: value of R_i(u)
+    :rtype: float
+
+    """
+    Nip = one_basis_function(degree_u, knotvec_u, span_u, knot_u)
+
+    denominator = 0.0
+    for n in range(0, len(knotvec_u) - degree_u - 1):
+        Nkp = one_basis_function(degree_u, knotvec_u, n, knot_u)
+        denominator += Nkp * weights[n]
+
+    curveRi = Nip / denominator
+    return curveRi
+
+
+# Compute the composite basis function R_ij(u,v) for a 2 parameter NURBS surface
+def surfRij(span_u, span_v, knot_u, knot_v, degree_u, degree_v, knotvec_u, knotvec_v, weights):
+    """Computes the composite basis function R_ij(u,v) at spans i,j and parameters u,v
+    for a 2 paramter NURBS surface.
+
+    :param span_u: u direction knot span associated with desired basis function
+    :type span_u: int
+    :param span_v: v direction knot span associated with desired basis function
+    :type span_v: int
+    :param knot_u: u direction knot value at which to evaluate desired basis function. range: [0,1]
+    :type knot_u: float
+    :param knot_v: v direction knot value at which to evaluate desired basis function. range: [0,1]
+    :type knot_v: float
+    :param degree_u: u direction degree of desired basis function
+    :type degree_u: int
+    :param degree_v: v direction degree of desired basis function
+    :type degree_v: int
+    :param knotvec_u: u direction knot vector associated with desired basis function
+    :type knotvec_u: tuple, list
+    :param knotvec_v: v direction knot vector associated with desired basis function
+    :type knotvec_v: tuple, list
+    :param weights: control point weights
+    :type weights: tuple, list
+    :return: value of R_ij(u,v)
+    :rtype: float
+
+    """
+    Nip = one_basis_function(degree_u, knotvec_u, span_u, knot_u)
+    Njq = one_basis_function(degree_v, knotvec_v, span_v, knot_v)
+
+    denominator = 0.0
+    for n in range(0, len(knotvec_u) - degree_u - 1):
+        Nkp = one_basis_function(degree_u, knotvec_u, n, knot_u)
+        for m in range(0, len(knotvec_v) - degree_v - 1):
+            Nlq = one_basis_function(degree_v, knotvec_v, m, knot_v)
+            denominator += Nkp * Nlq * weights[n + m]
+
+    surfRij = (Nip * Njq) / denominator
+
+    return surfRij	
 
 def basis_function_ders(degree, knot_vector, span, knot, order):
     """ Finds derivatives of the basis functions.
