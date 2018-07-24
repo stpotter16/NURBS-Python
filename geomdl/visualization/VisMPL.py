@@ -66,7 +66,7 @@ class VisConfig(Abstract.VisConfigAbstract):
     def set_axes_equal(ax):
         """ Sets equal aspect ratio across the three axes of a 3D plot.
 
-        This function is contributed by Dr. Xuefeng Zhao.
+        Contributed by Xuefeng Zhao.
 
         :param ax: a Matplotlib axis, e.g., as output from plt.gca().
         """
@@ -98,9 +98,10 @@ class VisCurve2D(Abstract.VisAbstract):
 
     def render(self, **kwargs):
         """ Plots the 2D curve and the control points polygon. """
-        if not self._plots:
-            return
+        # Calling parent function
+        super(VisCurve2D, self).render(**kwargs)
 
+        # Initialize variables
         legend_proxy = []
         legend_names = []
 
@@ -135,8 +136,8 @@ class VisCurve2D(Abstract.VisAbstract):
         ax.set_aspect('equal')
 
         # Process keyword arguments
-        fig_filename = kwargs.get('fig_save_as')
-        fig_display = kwargs.get('display_plot')
+        fig_filename = kwargs.get('fig_save_as', None)
+        fig_display = kwargs.get('display_plot', True)
 
         # Display the plot
         if fig_display:
@@ -155,15 +156,16 @@ class VisCurve3D(Abstract.VisAbstract):
 
     def render(self, **kwargs):
         """ Plots the 3D curve and the control points polygon. """
-        if not self._plots:
-            return
+        # Calling parent function
+        super(VisCurve3D, self).render(**kwargs)
+
+        # Initialize variables
+        legend_proxy = []
+        legend_names = []
 
         # Draw control points polygon and the 3D curve
         fig = plt.figure(figsize=self._config.figure_size, dpi=self._config.figure_dpi)
         ax = Axes3D(fig)
-
-        legend_proxy = []
-        legend_names = []
 
         # Start plotting
         for plot in self._plots:
@@ -199,8 +201,8 @@ class VisCurve3D(Abstract.VisAbstract):
         self._config.set_axes_equal(ax)
 
         # Process keyword arguments
-        fig_filename = kwargs.get('fig_save_as')
-        fig_display = kwargs.get('display_plot')
+        fig_filename = kwargs.get('fig_save_as', None)
+        fig_display = kwargs.get('display_plot', True)
 
         # Display the plot
         if fig_display:
@@ -222,15 +224,16 @@ class VisSurface(Abstract.VisAbstractSurf):
 
     def render(self, **kwargs):
         """ Plots the surface and the control points grid. """
-        if not self._plots:
-            return
+        # Calling parent function
+        super(VisSurface, self).render(**kwargs)
+
+        # Initialize variables
+        legend_proxy = []
+        legend_names = []
 
         # Start plotting of the surface and the control points grid
         fig = plt.figure(figsize=self._config.figure_size, dpi=self._config.figure_dpi)
         ax = Axes3D(fig)
-
-        legend_proxy = []
-        legend_names = []
 
         # Start plotting
         for plot in self._plots:
@@ -263,8 +266,8 @@ class VisSurface(Abstract.VisAbstractSurf):
         self._config.set_axes_equal(ax)
 
         # Process keyword arguments
-        fig_filename = kwargs.get('fig_save_as')
-        fig_display = kwargs.get('display_plot')
+        fig_filename = kwargs.get('fig_save_as', None)
+        fig_display = kwargs.get('display_plot', True)
 
         # Display the plot
         if fig_display:
@@ -286,15 +289,16 @@ class VisSurfWireframe(Abstract.VisAbstractSurf):
 
     def render(self, **kwargs):
         """ Plots the surface and the control points grid. """
-        if not self._plots:
-            return
+        # Calling parent function
+        super(VisSurfWireframe, self).render(**kwargs)
+
+        # Initialize variables
+        legend_proxy = []
+        legend_names = []
 
         # Start plotting of the surface and the control points grid
         fig = plt.figure(figsize=self._config.figure_size, dpi=self._config.figure_dpi)
         ax = Axes3D(fig)
-
-        legend_proxy = []
-        legend_names = []
 
         # Start plotting
         for plot in self._plots:
@@ -327,8 +331,8 @@ class VisSurfWireframe(Abstract.VisAbstractSurf):
         self._config.set_axes_equal(ax)
 
         # Process keyword arguments
-        fig_filename = kwargs.get('fig_save_as')
-        fig_display = kwargs.get('display_plot')
+        fig_filename = kwargs.get('fig_save_as', None)
+        fig_display = kwargs.get('display_plot', True)
 
         # Display the plot
         if fig_display:
@@ -350,15 +354,16 @@ class VisSurfTriangle(Abstract.VisAbstractSurf):
 
     def render(self, **kwargs):
         """ Plots the surface and the control points grid. """
-        if not self._plots:
-            return
+        # Calling parent function
+        super(VisSurfTriangle, self).render(**kwargs)
+
+        # Initialize variables
+        legend_proxy = []
+        legend_names = []
 
         # Start plotting of the surface and the control points grid
         fig = plt.figure(figsize=self._config.figure_size, dpi=self._config.figure_dpi)
         ax = Axes3D(fig)
-
-        legend_proxy = []
-        legend_names = []
 
         # Start plotting
         for plot in self._plots:
@@ -391,8 +396,8 @@ class VisSurfTriangle(Abstract.VisAbstractSurf):
         self._config.set_axes_equal(ax)
 
         # Process keyword arguments
-        fig_filename = kwargs.get('fig_save_as')
-        fig_display = kwargs.get('display_plot')
+        fig_filename = kwargs.get('fig_save_as', None)
+        fig_display = kwargs.get('display_plot', True)
 
         # Display the plot
         if fig_display:
@@ -414,15 +419,16 @@ class VisSurfScatter(Abstract.VisAbstractSurf):
 
     def render(self, **kwargs):
         """ Plots the surface and the control points grid. """
-        if not self._plots:
-            return
+        # Calling parent function
+        super(VisSurfScatter, self).render(**kwargs)
+
+        # Initialize variables
+        legend_proxy = []
+        legend_names = []
 
         # Start plotting of the surface and the control points grid
         fig = plt.figure(figsize=self._config.figure_size, dpi=self._config.figure_dpi)
         ax = Axes3D(fig)
-
-        legend_proxy = []
-        legend_names = []
 
         # Start plotting
         for plot in self._plots:
@@ -455,8 +461,8 @@ class VisSurfScatter(Abstract.VisAbstractSurf):
         self._config.set_axes_equal(ax)
 
         # Process keyword arguments
-        fig_filename = kwargs.get('fig_save_as')
-        fig_display = kwargs.get('display_plot')
+        fig_filename = kwargs.get('fig_save_as', None)
+        fig_display = kwargs.get('display_plot', True)
 
         # Display the plot
         if fig_display:

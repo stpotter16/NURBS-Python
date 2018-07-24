@@ -6,13 +6,23 @@
     Tests geomdl.BSpline.Curve module. Requires "pytest" to run.
 """
 from geomdl import BSpline
+from geomdl import evaluators
 
 GEOMDL_DELTA = 0.001
 OBJECT_INSTANCE = BSpline.Curve
 CONTROL_POINTS = [[5.0, 5.0], [10.0, 10.0], [20.0, 15.0], [35.0, 15.0], [45.0, 10.0], [50.0, 5.0]]
 
 
-def test_bspline_curve2d_degree():
+def test_bspline_curve_name():
+    # Create a Curve instance
+    curve = OBJECT_INSTANCE()
+
+    curve.name = "Testing"
+
+    assert curve.name == "Testing"
+
+
+def test_bspline_curve_degree():
     # Create a curve instance
     curve = OBJECT_INSTANCE()
 
@@ -22,7 +32,7 @@ def test_bspline_curve2d_degree():
     assert curve.degree == 3
 
 
-def test_bspline_curve2d_ctrlpts():
+def test_bspline_curve_ctrlpts():
     # Create a curve instance
     curve = OBJECT_INSTANCE()
 
@@ -36,7 +46,7 @@ def test_bspline_curve2d_ctrlpts():
     assert curve.dimension == 2
 
 
-def test_bspline_curve2d_knot_vector():
+def test_bspline_curve_knot_vector():
     # Create a curve instance
     curve = OBJECT_INSTANCE()
 
@@ -182,7 +192,8 @@ def test_bspline_curve2d_deriv1():
 
     # Take the derivative
     der1 = curve.derivatives(u=0.35, order=2)
-    der2 = curve.derivatives2(u=0.35, order=2)
+    curve.evaluator = evaluators.CurveEvaluator2()
+    der2 = curve.derivatives(u=0.35, order=2)
 
     assert abs(der1[0][0] - der2[0][0]) < GEOMDL_DELTA
     assert abs(der1[0][1] - der2[0][1]) < GEOMDL_DELTA
@@ -208,7 +219,8 @@ def test_bspline_curve2d_deriv2():
     # Take the derivative
     evalpt = curve.curvept(u=0.35)
     der1 = curve.derivatives(u=0.35)
-    der2 = curve.derivatives2(u=0.35)
+    curve.evaluator = evaluators.CurveEvaluator2()
+    der2 = curve.derivatives(u=0.35)
 
     assert abs(der1[0][0] - evalpt[0]) < GEOMDL_DELTA
     assert abs(der1[0][1] - evalpt[1]) < GEOMDL_DELTA

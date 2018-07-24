@@ -8,28 +8,66 @@
 """
 
 from . import abc
+from . import six
 from . import warnings
 from . import utilities
 
 
-class Curve(object):
+class Curve(six.with_metaclass(abc.ABCMeta, object)):
     """ Abstract class for all curves. """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self):
+        # If the array type has been set, then use it. Otherwise, use None
+        try:
+            self._array_type
+        except NameError:
+            self._array_type = None
+
+        # Initialize class variables
         self._name = "Curve"  # descriptor field
         self._rational = False  # defines whether the curve is rational or not
         self._degree = 0  # degree
-        self._knot_vector = None  # knot vector
-        self._control_points = None  # control points
+        self._knot_vector = utilities.init_var(self._array_type)  # knot vector
+        self._control_points = utilities.init_var(self._array_type)  # control points
         self._delta = 0.1  # evaluation delta
-        self._sample_size = None  # sample size
-        self._curve_points = None  # evaluated points
+        self._curve_points = utilities.init_var(self._array_type)  # evaluated points
         self._dimension = 0  # dimension of the curve
         self._vis_component = None  # visualization component
-        self._bounding_box = None  # bounding box
+        self._bounding_box = utilities.init_var(self._array_type)  # bounding box
         self._evaluator = None  # evaluator instance
+        self._precision = 6  # number of decimal places to round to
         self._cache = {}  # cache dictionary
+
+    def __str__(self):
+        return self.name
+
+    __repr__ = __str__
+
+    def __call__(self, degree, ctrlpts, kv, **kwargs):
+        """ Calls self as a function.
+
+        Keyword Arguments (optional):
+            * ``sample_size``: number of evaluated points to generate
+            * ``evaluator``: evaluation algorithm
+
+        :param degree: degree of the curve
+        :type degree: int
+        :param ctrlpts: control points
+        :type ctrlpts: list, tuple
+        :param kv: knot vector
+        :type kv: list, tuple
+        :return: evaluated curve points
+        :rtype: list
+        """
+        opt_num_samples = kwargs.get('sample_size', self.sample_size)
+        opt_algorithm = kwargs.get('evaluator', self.evaluator)
+        self.reset(ctrlpts=True, evalpts=True)
+        self.degree = degree
+        self.ctrlpts = ctrlpts
+        self.knotvector = kv
+        self.delta = opt_num_samples
+        self.evaluator = opt_algorithm
+        return self.evalpts
 
     @property
     def name(self):
@@ -54,12 +92,10 @@ class Curve(object):
         Evaluators allow users to use different algorithms for B-Spline and NURBS evaluations. Please see the
         documentation on ``Evaluator`` classes.
 
-        :getter: Prints the name of the evaluator and returns the current Evaluator instance
+        :getter: Gets the current Evaluator instance
         :setter: Sets the evaluator
         """
-        if self._evaluator:
-            print("Using " + self._evaluator.name)
-            return self._evaluator
+        return self._evaluator
 
     @evaluator.setter
     def evaluator(self, value):
@@ -99,7 +135,7 @@ class Curve(object):
 
     @order.setter
     def order(self, value):
-        self._degree = value - 1
+        self.degree = value - 1
 
     @property
     def degree(self):
@@ -134,6 +170,17 @@ class Curve(object):
 
     @knotvector.setter
     def knotvector(self, value):
+        if self._degree == 0 or self._control_points is None or len(self._control_points) == 0:
+            raise ValueError("Set degree and control points first")
+
+        # Check knot vector validity
+        if not utilities.check_knot_vector(self._degree, value, len(self._control_points)):
+            raise ValueError("Input is not a valid knot vector")
+
+        # Clean up the curve points lists
+        self.reset(evalpts=True)
+
+        # Set knot vector
         self._knot_vector = value
 
     @property
@@ -155,7 +202,7 @@ class Curve(object):
 
         :getter: Gets the coordinates of the evaluated points
         """
-        if not self._curve_points:
+        if self._curve_points is None or len(self._curve_points) == 0:
             self.evaluate()
 
         return self._curve_points
@@ -164,19 +211,25 @@ class Curve(object):
     def sample_size(self):
         """ Sample size.
 
-        Sample size defines the number of curve points to generate. It sets the ``delta`` property.
+        Sample size defines the number of curve points to generate. It also sets the ``delta`` property.
+
+        The following figure illustrates the working principles of sample size property:
+
+        .. math::
+
+            \\underbrace {\\left[ {{u_{start}}, \\ldots ,{u_{end}}} \\right]}_{{n_{sample}}}
 
         :getter: Gets sample size
         :setter: Sets sample size
         :type: int
         """
-        if self._sample_size is None:
-            # Try to estimate a sample size
-            self._sample_size = int(1.0 / self.delta) + 1
-        return self._sample_size
+        return int(1 / self.delta) + 1
 
     @sample_size.setter
     def sample_size(self, value):
+        if not isinstance(value, int):
+            raise ValueError("Sample size must be an integer value")
+
         if self._knot_vector is None or len(self._knot_vector) == 0 or self._degree == 0:
             warnings.warn("Cannot determine the delta value. Please set knot vector and degree before sample size.")
             return
@@ -185,14 +238,8 @@ class Curve(object):
         start = self._knot_vector[self._degree]
         stop = self._knot_vector[-(self._degree+1)]
 
-        # Clean up the curve points list
-        self.reset(evalpts=True)
-
         # Set delta value
-        self._delta = (stop - start) / float(value - 1)
-
-        # Set sample size
-        self._sample_size = value
+        self.delta = (stop - start) / float(value - 1)
 
     @property
     def delta(self):
@@ -201,6 +248,12 @@ class Curve(object):
         Evaluation delta corresponds to the *step size* while ``evaluate`` function iterates on the knot vector to
         generate curve points. Decreasing step size results in generation of more curve points.
         Therefore; smaller the delta value, smoother the curve.
+
+        The following figure illustrates the working principles of the delta property:
+
+        .. math::
+
+            \\left[{{u_{start}},{u_{start}} + \\delta ,({u_{start}} + \\delta ) + \\delta , \\ldots ,{u_{end}}} \\right]
 
         .. note:: The delta value is 0.1 by default.
 
@@ -337,33 +390,81 @@ class Curve(object):
         pass
 
 
-class Surface(object):
+class Surface(six.with_metaclass(abc.ABCMeta, object)):
     """ Abstract class for all surfaces. """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self):
-        # U-direction
+        # If the array type has been set, then use it. Otherwise, use None
+        try:
+            self._array_type
+        except NameError:
+            self._array_type = None
+
+        # Define u-direction variables
         self._degree_u = 0  # degree
-        self._knot_vector_u = None  # knot vector
+        self._knot_vector_u = utilities.init_var(self._array_type)  # knot vector
         self._control_points_size_u = 0  # control points array length
         self._delta_u = 0.1  # evaluation delta
-        # V-direction
+        # Define v-direction variables
         self._degree_v = 0  # degree
-        self._knot_vector_v = None  # knot vector
+        self._knot_vector_v = utilities.init_var(self._array_type)  # knot vector
         self._control_points_size_v = 0  # control points array length
         self._delta_v = 0.1  # evaluation delta
-        # Common
+        # Define common variables
         self._name = "Surface"  # descriptor field
         self._rational = False  # defines whether the surface is rational or not
-        self._sample_size = None  # defines sample size
-        self._control_points = None  # control points, 1-D array (v-order)
-        self._control_points2D = None  # control points, 2-D array [u][v]
-        self._surface_points = None  # evaluated points
+        self._control_points = utilities.init_var(self._array_type)  # control points, 1-D array (v-order)
+        self._control_points2D = utilities.init_var(self._array_type)  # control points, 2-D array [u][v]
+        self._surface_points = utilities.init_var(self._array_type)  # evaluated points
         self._dimension = 0  # dimension of the surface
         self._vis_component = None  # visualization component
-        self._bounding_box = None  # bounding box
+        self._bounding_box = utilities.init_var(self._array_type)  # bounding box
         self._evaluator = None  # evaluator instance
+        self._precision = 6  # number of decimal places to round to
         self._cache = {}  # cache dictionary
+
+    def __str__(self):
+        return self.name
+
+    __repr__ = __str__
+
+    def __call__(self, degree_u, degree_v, num_ctrlpts_u, num_ctrlpts_v, ctrlpts, kv_u, kv_v, **kwargs):
+        """ Calls self as a function.
+
+        Keyword Arguments (optional):
+            * ``sample_size``: number of evaluated points to generate on both directions
+            * ``evaluator``: evaluation algorithm
+
+        :param degree_u: degree of the surface on the u-direction
+        :type degree_u: int
+        :param degree_v: degree of the surface on the v-direction
+        :type degree_v: int
+        :param num_ctrlpts_u: number of control points on the u-direction
+        :type num_ctrlpts_u: int
+        :param num_ctrlpts_v: number of control points on the v-direction
+        :type num_ctrlpts_v: int
+        :param ctrlpts: control points (1-dimensional)
+        :type ctrlpts: list, tuple
+        :param kv_u: knot vector on the u-direction
+        :type kv_u: list, tuple
+        :param kv_v: knot vector on the v-direction
+        :type kv_v: list, tuple
+        :return: evaluated surface points
+        :rtype: list
+        """
+        opt_num_samples = kwargs.get('sample_size', self.sample_size)
+        opt_algorithm = kwargs.get('evaluator', self.evaluator)
+        self.reset(evalpts=True, ctrlpts=True)
+        self.degree_u = degree_u
+        self.degree_v = degree_v
+        self.ctrlpts_size_u = num_ctrlpts_u
+        self.ctrlpts_size_v = num_ctrlpts_v
+        self.ctrlpts = ctrlpts
+        self.knotvector_u = kv_u
+        self.knotvector_v = kv_v
+        self.delta = opt_num_samples
+        self.evaluator = opt_algorithm
+        return self.evalpts
 
     @property
     def name(self):
@@ -391,9 +492,7 @@ class Surface(object):
         :getter: Prints the name of the evaluator and returns the current Evaluator instance
         :setter: Sets the evaluator
         """
-        if self._evaluator:
-            print("Using " + self._evaluator.name)
-            return self._evaluator
+        return self._evaluator
 
     @evaluator.setter
     def evaluator(self, value):
@@ -421,42 +520,42 @@ class Surface(object):
 
     @property
     def order_u(self):
-        """ Surface order for U direction.
+        """ Surface order for u-direction.
 
         Follows the following equality: order = degree + 1
 
-        :getter: Gets the surface order for U direction
-        :setter: Sets the surface order for U direction
+        :getter: Gets the surface order for u-direction
+        :setter: Sets the surface order for u-direction
         :type: integer
         """
         return self._degree_u + 1
 
     @order_u.setter
     def order_u(self, value):
-        self._degree_u = value - 1
+        self.degree_u = value - 1
 
     @property
     def order_v(self):
-        """ Surface order for V direction.
+        """ Surface order for v-direction.
 
         Follows the following equality: order = degree + 1
 
-        :getter: Gets the surface order for V direction
-        :setter: Sets the surface order for V direction
+        :getter: Gets the surface order for v-direction
+        :setter: Sets the surface order for v-direction
         :type: integer
         """
         return self._degree_v + 1
 
     @order_v.setter
     def order_v(self, value):
-        self._degree_v = value - 1
+        self.degree_v = value - 1
 
     @property
     def degree_u(self):
-        """ Surface degree for U direction.
+        """ Surface degree for u-direction.
 
-        :getter: Gets the surface degree for U direction
-        :setter: Sets the surface degree for U direction
+        :getter: Gets the surface degree for u-direction
+        :setter: Sets the surface degree for u-direction
         :type: integer
         """
         return self._degree_u
@@ -473,10 +572,10 @@ class Surface(object):
 
     @property
     def degree_v(self):
-        """ Surface degree for V direction.
+        """ Surface degree for v-direction.
 
-        :getter: Gets the surface degree for V direction
-        :setter: Sets the surface degree for V direction
+        :getter: Gets the surface degree for v-direction
+        :setter: Sets the surface degree for v-direction
         :type: integer
         """
         return self._degree_v
@@ -493,28 +592,50 @@ class Surface(object):
 
     @property
     def knotvector_u(self):
-        """ Knot vector for U direction.
+        """ Knot vector for u-direction.
 
-        :getter: Gets the knot vector for U direction
-        :setter: Sets the knot vector for U direction
+        :getter: Gets the knot vector for u-direction
+        :setter: Sets the knot vector for u-direction
         """
         return self._knot_vector_u
 
     @knotvector_u.setter
     def knotvector_u(self, value):
+        if self._degree_u == 0 or self._control_points_size_u == 0:
+            raise ValueError("Set degree and control points first on the u-direction")
+
+        # Check knot vector validity
+        if not utilities.check_knot_vector(self._degree_u, value, self._control_points_size_u):
+            raise ValueError("Input is not a valid knot vector on the u-direction")
+
+        # Clean up the surface points
+        self.reset(evalpts=True)
+
+        # Set knot vector
         self._knot_vector_u = value
 
     @property
     def knotvector_v(self):
-        """ Knot vector for V direction.
+        """ Knot vector for v-direction.
 
-        :getter: Gets the knot vector for V direction
-        :setter: Sets the knot vector for V direction
+        :getter: Gets the knot vector for v-direction
+        :setter: Sets the knot vector for v-direction
         """
         return self._knot_vector_v
 
     @knotvector_v.setter
     def knotvector_v(self, value):
+        if self._degree_v == 0 or self._control_points_size_v == 0:
+            raise ValueError("Set degree and control points first on the v-direction")
+
+        # Check knot vector validity
+        if not utilities.check_knot_vector(self._degree_v, value, self._control_points_size_v):
+            raise ValueError("Input is not a valid knot vector on the v-direction")
+
+        # Clean up the surface points
+        self.reset(evalpts=True)
+
+        # Set knot vector
         self._knot_vector_v = value
 
     @property
@@ -534,8 +655,8 @@ class Surface(object):
     def ctrlpts2d(self):
         """ 2-D control points.
 
-        :getter: Gets the control points in U and V directions
-        :setter: Sets the control points in U and V directions
+        :getter: Gets the control points as a 2-dimensional array in [u][v] format
+        :setter: Sets the control points as a 2-dimensional array in [u][v] format
         """
         return self._control_points2D
 
@@ -545,15 +666,17 @@ class Surface(object):
 
     @property
     def ctrlpts_size_u(self):
-        """ Size of the control points array in U-direction.
+        """ Size of the control points array on the u-direction.
 
-        :getter: Gets number of control points in U-direction
-        :setter: Sets number of control points in U-direction
+        :getter: Gets number of control points on the u-direction
+        :setter: Sets number of control points on the u-direction
         """
         return self._control_points_size_u
 
     @ctrlpts_size_u.setter
     def ctrlpts_size_u(self, value):
+        if not isinstance(value, int):
+            raise TypeError("Number of control points on the u-direction must be an integer number")
         if value <= 0:
             raise ValueError("Control points size cannot be less than and equal to zero")
 
@@ -562,15 +685,17 @@ class Surface(object):
 
     @property
     def ctrlpts_size_v(self):
-        """ Size of the control points array in V-direction.
+        """ Size of the control points array on the v-direction.
 
-        :getter: Gets number of control points in V-direction
-        :setter: Sets number of control points in V-direction
+        :getter: Gets number of control points on the v-direction
+        :setter: Sets number of control points on the v-direction
         """
         return self._control_points_size_v
 
     @ctrlpts_size_v.setter
     def ctrlpts_size_v(self, value):
+        if not isinstance(value, int):
+            raise TypeError("Number of control points on the v-direction must be an integer number")
         if value <= 0:
             raise ValueError("Control points size cannot be less than and equal to zero")
 
@@ -583,26 +708,86 @@ class Surface(object):
 
         :getter: Gets the coordinates of the evaluated points
         """
-        if not self._surface_points:
+        if self._surface_points is None or len(self._surface_points) == 0:
             self.evaluate()
 
         return self._surface_points
 
     @property
-    def sample_size(self):
-        """ Sample size.
+    def sample_size_u(self):
+        """ Sample size for the u-direction.
 
-        Sample size defines the number of surface points to generate. It sets the ``delta`` property.
+        Sample size defines the number of surface points to generate. It also sets the ``delta`` property.
 
-        :getter: Gets sample size
-        :setter: Sets sample size
+        :getter: Gets sample size for the u-direction
+        :setter: Sets sample size for the u-direction
         :type: int
         """
-        if self._sample_size is None:
-            # Try to estimate a sample size
-            self._sample_size = int(1.0 / self.delta_u) + 1
-            # self._sample_size = int(1.0 / self.delta_v) + 1
-        return self._sample_size
+        return int(1 / self.delta_u) + 1
+
+    @sample_size_u.setter
+    def sample_size_u(self, value):
+        if not isinstance(value, int):
+            raise ValueError("Sample size must be an integer value")
+
+        if (self._knot_vector_u is None or len(self._knot_vector_u) == 0) or self._degree_u == 0:
+            warnings.warn("Cannot determine the delta_u value. Please set knot vectors and degrees before sample size.")
+            return
+
+        # To make it operate like linspace, we have to know the starting and ending points.
+        start_u = self._knot_vector_u[self._degree_u]
+        stop_u = self._knot_vector_u[-(self._degree_u+1)]
+
+        # Set delta values
+        self.delta_u = (stop_u - start_u) / float(value - 1)
+
+    @property
+    def sample_size_v(self):
+        """ Sample size for the v-direction.
+
+        Sample size defines the number of surface points to generate. It also sets the ``delta`` property.
+
+        :getter: Gets sample size for the v-direction
+        :setter: Sets sample size for the v-direction
+        :type: int
+        """
+        return int(1 / self.delta_v) + 1
+
+    @sample_size_v.setter
+    def sample_size_v(self, value):
+        if not isinstance(value, int):
+            raise ValueError("Sample size must be an integer value")
+
+        if (self._knot_vector_v is None or len(self._knot_vector_v) == 0) or self._degree_v == 0:
+            warnings.warn("Cannot determine the delta_v value. Please set knot vectors and degrees before sample size.")
+            return
+
+        # To make it operate like linspace, we have to know the starting and ending points.
+        start_v = self._knot_vector_v[self._degree_v]
+        stop_v = self._knot_vector_v[-(self._degree_v+1)]
+
+        # Set delta values
+        self.delta_v = (stop_v - start_v) / float(value - 1)
+
+    @property
+    def sample_size(self):
+        """ Sample size for both u- and v-directions.
+
+        Sample size defines the number of surface points to generate. It also sets the ``delta`` property.
+
+        The following figure illustrates the working principles of sample size property:
+
+        .. math::
+
+            \\underbrace {\\left[ {{u_{start}}, \\ldots ,{u_{end}}} \\right]}_{{n_{sample}}}
+
+        :getter: Gets sample size values as a tuple of values corresponding to u- and v-directions
+        :setter: Sets the same sample size value for both u- and v-directions
+        :type: int
+        """
+        sample_size_u = int(1 / self.delta_u) + 1
+        sample_size_v = int(1 / self.delta_v) + 1
+        return sample_size_u, sample_size_v
 
     @sample_size.setter
     def sample_size(self, value):
@@ -617,28 +802,25 @@ class Surface(object):
         start_v = self._knot_vector_v[self._degree_v]
         stop_v = self._knot_vector_v[-(self._degree_v+1)]
 
-        # Clean up the surface points
-        self.reset(evalpts=True)
-
         # Set delta values
-        self._delta_u = (stop_u - start_u) / float(value - 1)
-        self._delta_v = (stop_v - start_v) / float(value - 1)
-
-        # Set sample size
-        self._sample_size = value
+        self.delta_u = (stop_u - start_u) / float(value - 1)
+        self.delta_v = (stop_v - start_v) / float(value - 1)
 
     @property
     def delta_u(self):
-        """ Evaluation delta in U-direction.
+        """ Evaluation delta for the u-direction.
 
-        Evaluation delta corresponds to the *step size* while ``evaluate`` function iterates on the knot vector to
+        Evaluation delta corresponds to the *step size* while ``evaluate()`` function iterates on the knot vector to
         generate surface points. Decreasing step size results in generation of more surface points.
         Therefore; smaller the delta value, smoother the surface.
 
+        Please note that ``delta_u`` and ``sample_size_u`` properties correspond to the same variable with different
+        descriptions. Therefore, setting ``delta_u`` will also set ``sample_size_u``.
+
         .. note:: The delta value is 0.1 by default.
 
-        :getter: Gets the delta value
-        :setter: Sets the delta value
+        :getter: Gets the delta value for the u-direction
+        :setter: Sets the delta value for the u-direction
         :type: float
         """
         return self._delta_u
@@ -647,26 +829,29 @@ class Surface(object):
     def delta_u(self, value):
         # Delta value for surface evaluation should be between 0 and 1
         if float(value) <= 0 or float(value) >= 1:
-            raise ValueError("Surface evaluation delta should be between 0.0 and 1.0")
+            raise ValueError("Surface evaluation delta (u-direction) must be between 0.0 and 1.0")
 
         # Clean up the surface points
         self.reset(evalpts=True)
 
-        # Set a new delta value
+        # Set new delta value
         self._delta_u = float(value)
 
     @property
     def delta_v(self):
-        """ Evaluation delta in V-direction.
+        """ Evaluation delta for the v-direction.
 
-        Evaluation delta corresponds to the *step size* while ``evaluate`` function iterates on the knot vector to
+        Evaluation delta corresponds to the *step size* while ``evaluate()`` function iterates on the knot vector to
         generate surface points. Decreasing step size results in generation of more surface points.
         Therefore; smaller the delta value, smoother the surface.
 
+        Please note that ``delta_v`` and ``sample_size_v`` properties correspond to the same variable with different
+        descriptions. Therefore, setting ``delta_v`` will also set ``sample_size_v``.
+
         .. note:: The delta value is 0.1 by default.
 
-        :getter: Gets the delta value
-        :setter: Sets the delta value
+        :getter: Gets the delta value for the v-direction
+        :setter: Sets the delta value for the v-direction
         :type: float
         """
         return self._delta_v
@@ -675,47 +860,52 @@ class Surface(object):
     def delta_v(self, value):
         # Delta value for surface evaluation should be between 0 and 1
         if float(value) <= 0 or float(value) >= 1:
-            raise ValueError("Surface evaluation delta should be between 0.0 and 1.0")
+            raise ValueError("Surface evaluation delta (v-direction) should be between 0.0 and 1.0")
 
         # Clean up the surface points
         self.reset(evalpts=True)
 
-        # Set a new delta value
+        # Set new delta value
         self._delta_v = float(value)
 
     @property
     def delta(self):
-        """ Evaluation delta in U- and V-directions.
+        """ Evaluation delta for both u- and v-directions.
 
-        Evaluation delta corresponds to the *step size* while ``evaluate`` function iterates on the knot vector to
+        Evaluation delta corresponds to the *step size* while ``evaluate()`` function iterates on the knot vector to
         generate surface points. Decreasing step size results in generation of more surface points.
         Therefore; smaller the delta value, smoother the surface.
 
+        Please note that ``delta`` and ``sample_size`` properties correspond to the same variable with different
+        descriptions. Therefore, setting ``delta`` will also set ``sample_size``.
+
+        The following figure illustrates the working principles of the delta property:
+
+        .. math::
+
+            \\left[{{u_{0}},{u_{start}} + \\delta ,({u_{start}} + \\delta ) + \\delta , \\ldots ,{u_{end}}} \\right]
+
         .. note:: The delta value is 0.1 by default.
 
-        :getter: Gets the delta value
-        :setter: Sets the delta value
+        :getter: Gets the delta values as a tuple of values corresponding to u- and v-directions
+        :setter: Sets the same delta value for both u- and v-directions
         :type: float
         """
         return self.delta_u, self.delta_v
 
     @delta.setter
     def delta(self, value):
-        if isinstance(value, float):
-            if float(value) <= 0 or float(value) >= 1:
-                raise ValueError("Surface evaluation delta should be between 0.0 and 1.0")
-            self._delta_u = value
-            self._delta_v = value
+        if isinstance(value, (int, float)):
+            self.delta_u = value
+            self.delta_v = value
         elif isinstance(value, (list, tuple)):
             if len(value) == 2:
-                if float(value[0]) <= 0 or float(value[0]) >= 1 or float(value[1]) <= 0 or float(value[1]) >= 1:
-                    raise ValueError("Surface evaluation delta should be between 0.0 and 1.0")
-                self._delta_u = value[0]
-                self._delta_v = value[1]
+                self.delta_u = value[0]
+                self.delta_v = value[1]
             else:
                 raise ValueError("Surface requires 2 delta values")
         else:
-            warnings.warn("Cannot set delta. Please use a float or a list with 2 elements")
+            raise ValueError("Cannot set delta. Please input a numeric value or a list or tuple with 2 numeric values")
 
     @property
     def vis(self):
@@ -729,7 +919,7 @@ class Surface(object):
     @vis.setter
     def vis(self, value):
         if not isinstance(value, VisAbstract):
-            warnings.warn("Visualization component is NOT an instance of VisAbstract class")
+            warnings.warn("Visualization component must be an instance of VisAbstract class")
             return
 
         self._vis_component = value
@@ -788,7 +978,7 @@ class Surface(object):
                                 size=[self._control_points_size_u, self._control_points_size_v],
                                 name="Control Points", color=cpcolor, plot_type='ctrlpts')
         self._vis_component.add(ptsarr=self.evalpts,
-                                size=[self.sample_size, self.sample_size],
+                                size=[self.sample_size_u, self.sample_size_v],
                                 name="Surface", color=surfcolor, plot_type='evalpts')
         self._vis_component.render(fig_save_as=filename, display_plot=plot_visible)
 
@@ -842,14 +1032,11 @@ class Surface(object):
         pass
 
 
-class Multi(object):
+class Multi(six.with_metaclass(abc.ABCMeta, object)):
     """ Abstract class for curve and surface containers. """
-
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self):
         self._elements = []  # elements contained
-        self._sample_size = 10 # sample size
         self._vis_component = None  # visualization component
         self._iter_index = 0  # iterator index
         self._instance = None  # type of the initial element
@@ -885,22 +1072,6 @@ class Multi(object):
         new_elems = self._elements + other._elements
         ret.add_list(new_elems)
         return ret
-
-    @property
-    def sample_size(self):
-        """ Sample size.
-
-        Sample size defines the number of evaluated points to generate. It sets the ``delta`` property.
-
-        :getter: Gets sample size
-        :setter: Sets sample size
-        :type: int
-        """
-        return self._sample_size
-
-    @sample_size.setter
-    def sample_size(self, value):
-        self._sample_size = value
 
     @property
     def vis(self):
@@ -959,17 +1130,15 @@ class Multi(object):
         pass
 
 
-class Evaluator(object):
+class Evaluator(six.with_metaclass(abc.ABCMeta, object)):
     """ Evaluator abstract base class.
 
     The methods ``evaluate`` and ``derivative`` is intended to be used for computation over a range of values.
     The suggested usage of ``evaluate_single`` and ``derivative_single`` methods are computation of a single value.
     """
-    __metaclass__ = abc.ABCMeta
 
-    def __init__(self):
-        self._name = ""  # You should override this variable
-        pass
+    def __init__(self, **kwargs):
+        self._name = kwargs.get('name', self.__class__.__name__)
 
     @property
     def name(self):
@@ -982,7 +1151,7 @@ class Evaluator(object):
 
     @abc.abstractmethod
     def evaluate_single(self, **kwargs):
-        """ Abstract method for computation of a single point at the specified parameter(s). """
+        """ Abstract method for computation of a single point at a single parameter. """
         pass
 
     @abc.abstractmethod
@@ -992,7 +1161,7 @@ class Evaluator(object):
 
     @abc.abstractmethod
     def derivatives_single(self, **kwargs):
-        """ Abstract method for computation of derivatives at the specified parameter(s). """
+        """ Abstract method for computation of derivatives at a single parameter. """
         pass
 
     @abc.abstractmethod
@@ -1001,26 +1170,65 @@ class Evaluator(object):
         pass
 
 
-class VisConfigAbstract(object):
+class CurveEvaluator(six.with_metaclass(abc.ABCMeta, object)):
+    """ Curve customizations for Evaluator abstract base class. """
+
+    def __init__(self, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def insert_knot(self, **kwargs):
+        """ Abstract method for implementation of knot insertion algorithm. """
+        pass
+
+
+class SurfaceEvaluator(six.with_metaclass(abc.ABCMeta, object)):
+    """ Surface customizations for the Evaluator abstract base class. """
+
+    def __init__(self, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def insert_knot_u(self, **kwargs):
+        """ Abstract method for implementation of knot insertion algorithm on the u-direction. """
+        pass
+
+    @abc.abstractmethod
+    def insert_knot_v(self, **kwargs):
+        """ Abstract method for implementation of knot insertion algorithm on the v-direction. """
+        pass
+
+
+class SurfaceTessellator(six.with_metaclass(abc.ABCMeta, object)):
+    """ Tessellator abstract base for the surface evaluator classes. """
+
+    def __init__(self, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def tessellate(self, **kwargs):
+        """ Abstract method for implementation of the surface tessellation algorithm. """
+        pass
+
+
+class VisConfigAbstract(six.with_metaclass(abc.ABCMeta, object)):
     """ Visualization configuration abstract class
 
     Uses Python's *Abstract Base Class* implementation to define a base for all visualization configurations
     in NURBS-Python package.
     """
-    __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
     def __init__(self, **kwargs):
         pass
 
 
-class VisAbstract(object):
+class VisAbstract(six.with_metaclass(abc.ABCMeta, object)):
     """ Visualization abstract class
 
     Uses Python's *Abstract Base Class* implementation to define a base for all common visualization options
     in NURBS-Python package.
     """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self, config=None):
         self._plots = []
@@ -1035,7 +1243,7 @@ class VisAbstract(object):
 
         :param ptsarr: control, curve or surface points
         :type ptsarr: list, tuple
-        :param size: size in all directions, e.g. in U- and V-direction
+        :param size: size in all directions, e.g. in u- and v-directions
         :type size: int, tuple, list
         :param name: name of the point on the legend
         :type name: str
@@ -1058,16 +1266,20 @@ class VisAbstract(object):
 
         This method must be implemented in all subclasses of ``VisAbstract`` class.
         """
+        # We need something to plot
+        if self._plots is None or len(self._plots) == 0:
+            raise ValueError("Nothing to plot")
+
+        # Remaining should be implemented
         pass
 
 
-class VisAbstractSurf(VisAbstract):
+class VisAbstractSurf(six.with_metaclass(abc.ABCMeta, VisAbstract)):
     """ Visualization abstract class for surfaces
 
-    Implements ``VisABstract`` class and also uses Python's *Abstract Base Class* implementation to define a base
+    Implements ``VisAbstract`` class and also uses Python's *Abstract Base Class* implementation to define a base
     for **surface** visualization options in NURBS-Python package.
     """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self, config=None):
         super(VisAbstractSurf, self).__init__(config=config)
@@ -1087,4 +1299,8 @@ class VisAbstractSurf(VisAbstract):
 
         This method must be implemented in all subclasses of ``VisAbstractSurf`` class.
         """
+        # Calling parent function
+        super(VisAbstractSurf, self).render()
+
+        # Remaining should be implemented
         pass

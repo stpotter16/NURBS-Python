@@ -33,24 +33,10 @@ class Curve(Abstract.Curve):
     """
 
     def __init__(self):
+        self._array_type = list  # Sets the array type
         super(Curve, self).__init__()
         self._name = "B-Spline Curve"
-        self._knot_vector = []
-        self._control_points = []
-        self._curve_points = []
-        self._bounding_box = []
         self._evaluator = evaluators.CurveEvaluator()
-
-    def __str__(self):
-        return self.name
-
-    __repr__ = __str__
-
-    def __call__(self, degree, ctrlpts, knotvector):
-        self.reset(ctrlpts=True, evalpts=True)
-        self.degree = degree
-        self.ctrlpts = ctrlpts
-        self.knotvector = knotvector
 
     @property
     def curvepts(self):
@@ -93,6 +79,7 @@ class Curve(Abstract.Curve):
         # Estimate dimension by checking the size of the first element
         self._dimension = len(ctrlpts[0])
 
+        ctrlpts_float = []
         for idx, cpt in enumerate(ctrlpts):
             if not isinstance(cpt, (list, tuple)):
                 raise ValueError("Element number " + str(idx) + " is not a list")
@@ -100,8 +87,10 @@ class Curve(Abstract.Curve):
                 raise ValueError("The input must be " + str(self._dimension) + " dimensional list - " + str(cpt) +
                                  " is not a valid control point")
             # Convert to list of floats
-            coord_float = [float(coord) for coord in cpt]
-            self._control_points.append(coord_float)
+            pt_float = [float(coord) for coord in cpt]
+            ctrlpts_float.append(pt_float)
+
+        self._control_points = ctrlpts_float
 
     @property
     def knotvector(self):
@@ -115,27 +104,18 @@ class Curve(Abstract.Curve):
 
     @knotvector.setter
     def knotvector(self, value):
-        if self._degree == 0 or not self._control_points:
-            raise ValueError("Set degree and control points first")
+        # Call parent property setter
+        super(Curve, self.__class__).knotvector.fset(self, value)
 
-        # Normalize the input knot vector
-        value_normalized = utilities.normalize_knot_vector(value)
-
-        # Check knot vector validity
-        if not utilities.check_knot_vector(self._degree, value_normalized, len(self._control_points)):
-            raise ValueError("Input is not a valid knot vector")
-
-        # Clean up the surface points lists
-        self.reset(evalpts=True)
-
-        # Set knot vector
-        self._knot_vector = [float(kv) for kv in value_normalized]
+        # Normalize knot vector
+        self._knot_vector = utilities.normalize_knot_vector(self._knot_vector, decimals=self._precision)
 
     def save(self, file_name):
         """  Saves the curve as a pickled file.
 
         :param file_name: name of the file to be saved
         :type file_name: str
+        :raises IOError: an error occurred writing the file
         """
         # Create a dictionary from the curve data
         expdata = {'rational': self._rational,
@@ -151,6 +131,7 @@ class Curve(Abstract.Curve):
 
         :param file_name: name of the file to be loaded
         :type file_name: str
+        :raises IOError: an error occurred reading the file
         """
         impdata = read_pickle(file_name)
 
@@ -200,26 +181,39 @@ class Curve(Abstract.Curve):
         utilities.check_uv(u)
 
         # Evaluate
-        cpt = self._evaluator.evaluate_single(knot=u,
-                                              degree=self.degree,
-                                              knotvector=self.knotvector,
-                                              ctrlpts=self._control_points,
-                                              dimension=self._dimension)
-
-        return cpt
+        return self._evaluator.evaluate_single(knot=u,
+                                               degree=self.degree,
+                                               knotvector=self.knotvector,
+                                               ctrlpts=self._control_points,
+                                               dimension=self._dimension)
 
     def evaluate(self, **kwargs):
         """ Evaluates the curve.
 
-        Keyword arguments:
+        **The evaluated curve points are stored in :py:attr:`~evalpts` property.**
 
-        * ``start``: start parameter
-        * ``stop``: stop parameter
+        Keyword arguments:
+            * ``start``: start parameter
+            * ``stop``: stop parameter
 
         The ``start`` and ``stop`` parameters allow evaluation of a curve segment in the range *[start, stop]*, i.e.
         the curve will also be evaluated at the ``stop`` parameter value.
 
-        .. note:: The evaluated curve points are stored in :py:attr:`~evalpts`.
+        The following examples illustrate the usage of the keyword arguments.
+
+        .. code-block:: python
+
+            # Start evaluating from u=0.2 to u=1.0
+            curve.evaluate(start=0.2)
+
+            # Start evaluating from u=0.0 to u=0.7
+            curve.evaluate(stop=0.7)
+
+            # Start evaluating from u=0.1 to u=0.5
+            curve.evaluate(start=0.1, stop=0.5)
+
+            # Get the evaluated points
+            curve_points = curve.evalpts
 
         """
         # Check all parameters are set before the curve evaluation
@@ -236,92 +230,21 @@ class Curve(Abstract.Curve):
         # Clean up the curve points
         self.reset(evalpts=True)
 
-        # Generate the knots in the range
-        knots = utilities.linspace(start, stop, self.sample_size)
-
         # Evaluate
-        cpts = self._evaluator.evaluate(knots=knots,
+        cpts = self._evaluator.evaluate(start_u=start, stop_u=stop,
                                         degree=self.degree,
                                         knotvector=self.knotvector,
                                         ctrlpts=self._control_points,
-                                        dimension=self._dimension)
+                                        sample_size=self.sample_size,
+                                        dimension=self._dimension,
+                                        precision=self._precision)
 
         self._curve_points = cpts
 
-    # Evaluates the curve derivative using "CurveDerivsAlg1" algorithm
-    def derivatives2(self, u=-1, order=0):
-        """ Evaluates n-th order curve derivatives at the given parameter value.
-
-        Implements Algorithm A3.2 of *The NURBS Book*.
-
-        :param u: knot value
-        :type u: float
-        :param order: derivative order
-        :type order: integer
-        :return: a list containing up to {order}-th derivative of the curve
-        :rtype: list
-        """
-        # Check all parameters are set before the curve evaluation
-        self._check_variables()
-        # Check u parameters are correct
-        utilities.check_uv(u)
-
-        # Algorithm A3.2
-        du = min(self._degree, order)
-
-        CK = [[None for _ in range(self._dimension)] for _ in range(order + 1)]
-        for k in range(self._degree + 1, order + 1):
-            CK[k] = [0.0 for _ in range(self._dimension)]
-
-        span = helpers.find_span(self.knotvector, len(self._control_points), u)
-        bfunsders = helpers.basis_function_ders(self._degree, tuple(self._knot_vector), span, u, du)
-
-        for k in range(0, du + 1):
-            CK[k] = [0.0 for _ in range(self._dimension)]
-            for j in range(0, self._degree + 1):
-                CK[k][:] = [drv + (bfunsders[k][j] * ctrl_pt) for drv, ctrl_pt in
-                            zip(CK[k], self._control_points[span - self._degree + j])]
-
-        # Return the derivatives
-        return CK
-
-    # Computes the control points of all derivative curves up to and including the d-th derivative
-    def derivatives_ctrlpts(self, order=0, r1=0, r2=0):
-        """ Computes the control points of all derivative curves up to and including the {degree}-th derivative.
-
-        Implements Algorithm A3.3 of *The NURBS Book*.
-        Output is PK[k][i], i-th control point of the k-th derivative curve where 0 <= k <= degree and r1 <= i <= r2-k
-
-        :param order: derivative order
-        :type order: integer
-        :param r1: minimum span
-        :type r1: integer
-        :param r2: maximum span
-        :type r2: integer
-        :return: PK, a 2D list of control points
-        :rtype: list
-        """
-        # Algorithm A3.3
-        r = r2 - r1
-        PK = [[[None for _ in range(self._dimension)] for _ in range(r + 1)] for _ in range(order + 1)]
-        for i in range(0, r + 1):
-            PK[0][i][:] = [elem for elem in self._control_points[r1 + i]]
-
-        for k in range(1, order + 1):
-            tmp = self._degree - k + 1
-            for i in range(0, r - k + 1):
-                PK[k][i][:] = [tmp * (elem1 - elem2) / (
-                    self._knot_vector[r1 + i + self._degree + 1] - self._knot_vector[r1 + i + k]) for elem1, elem2
-                               in zip(PK[k - 1][i + 1], PK[k - 1][i])]
-
-        return PK
-
-    # Evaluates the curve derivative using "CurveDerivsAlg2" algorithm
+    # Evaluates the curve derivative
     def derivatives(self, u=-1, order=0):
         """ Evaluates n-th order curve derivatives at the given parameter value.
 
-        Implements Algorithm A3.4 of *The NURBS Book*.
-
         :param u: knot value
         :type u: float
         :param order: derivative order
@@ -334,25 +257,13 @@ class Curve(Abstract.Curve):
         # Check u parameters are correct
         utilities.check_uv(u)
 
-        # Algorithm A3.4
-        du = min(self._degree, order)
-
-        CK = [[None for _ in range(self._dimension)] for _ in range(order + 1)]
-        for k in range(self._degree + 1, order + 1):
-            CK[k] = [0.0 for _ in range(self._dimension)]
-
-        span = helpers.find_span(self.knotvector, len(self._control_points), u)
-        bfuns = helpers.basis_function_all(self._degree, tuple(self._knot_vector), span, u)
-        PK = self.derivatives_ctrlpts(du, span - self._degree, span)
-
-        for k in range(0, du + 1):
-            CK[k] = [0.0 for _ in range(self._dimension)]
-            for j in range(0, self._degree - k + 1):
-                CK[k][:] = [elem + (bfuns[j][self._degree - k] * drv_ctrlpt) for elem, drv_ctrlpt in
-                            zip(CK[k], PK[k][j])]
-
-        # Return the derivatives
-        return CK
+        # Evaluate derivative at knot u
+        return self._evaluator.derivatives_single(knot=u,
+                                                  deriv_order=order,
+                                                  degree=self.degree,
+                                                  knotvector=self.knotvector,
+                                                  ctrlpts=self._control_points,
+                                                  dimension=self._dimension)
 
     # Evaluates the curve tangent at the given u parameter
     def tangent(self, u=-1, normalize=False):
@@ -514,61 +425,24 @@ class Curve(Abstract.Curve):
         self._check_variables()
         # Check u parameters are correct
         utilities.check_uv(u)
+
         # Check if the number of knot insertions requested is valid
         if not isinstance(r, int) or r < 0:
             raise ValueError('Number of insertions (r) must be a positive integer value')
 
-        s = helpers.find_multiplicity(u, self._knot_vector)
+        s = helpers.find_multiplicity(u, self.knotvector)
 
         # Check if it is possible add that many number of knots
         if check_r and r > self._degree - s:
-            warnings.warn("Cannot insert " + str(r) + " number of knots")
-            return
+            raise ValueError("Cannot insert " + str(r) + " number of knots")
 
-        # Algorithm A5.1
-        k = helpers.find_span(self.knotvector, len(self._control_points), u)
-        mp = len(self._knot_vector)
-        np = len(self._control_points)
-        nq = np + r
-
-        # Initialize new knot vector array
-        UQ = [None for _ in range(mp + r)]
-        # Initialize new control points array (control points can be weighted or not)
-        Q = [None for _ in range(nq)]
-        # Initialize a local array of length p + 1
-        R = [None for _ in range(self._degree + 1)]
-
-        # Load new knot vector
-        for i in range(0, k + 1):
-            UQ[i] = self._knot_vector[i]
-        for i in range(1, r + 1):
-            UQ[k + i] = u
-        for i in range(k + 1, mp):
-            UQ[i + r] = self._knot_vector[i]
-
-        # Save unaltered control points
-        for i in range(0, k - self._degree + 1):
-            Q[i] = self._control_points[i]
-        for i in range(k - s, np):
-            Q[i + r] = self._control_points[i]
-
-        # The algorithm uses R array to update control points
-        for i in range(0, self._degree - s + 1):
-            R[i] = copy.deepcopy(self._control_points[k - self._degree + i])
-
-        # Insert the knot r times
-        for j in range(1, r + 1):
-            L = k - self._degree + j
-            for i in range(0, self._degree - j - s + 1):
-                alpha = (u - self._knot_vector[L + i]) / (self._knot_vector[i + k + 1] - self._knot_vector[L + i])
-                R[i][:] = [alpha * elem2 + (1.0 - alpha) * elem1 for elem1, elem2 in zip(R[i], R[i + 1])]
-            Q[L] = copy.deepcopy(R[0])
-            Q[k + r - j - s] = copy.deepcopy(R[self._degree - j - s])
-
-        # Load remaining control points
-        L = k - self._degree + r
-        for i in range(L + 1, k - s):
-            Q[i] = copy.deepcopy(R[i - L])
+        UQ, Q = self._evaluator.insert_knot(knot=u,
+                                            r=r,
+                                            s=s,
+                                            degree=self.degree,
+                                            knotvector=self.knotvector,
+                                            ctrlpts=self._control_points,
+                                            dimension=self._dimension)
 
         # Update class variables
         self._knot_vector = UQ
@@ -738,28 +612,10 @@ class Surface(Abstract.Surface):
     """
 
     def __init__(self):
+        self._array_type = list  # Sets the array type
         super(Surface, self).__init__()
         self._name = "B-Spline Surface"
-        self._knot_vector_u = []
-        self._knot_vector_v = []
-        self._control_points = []
-        self._control_points2D = []  # in [u][v] format
-        self._surface_points = []
-        self._bounding_box = []
         self._evaluator = evaluators.SurfaceEvaluator()
-
-    def __str__(self):
-        return self.name
-
-    __repr__ = __str__
-
-    def __call__(self, degree_u, degree_v, ctrlpts_size_u, ctrlpts_size_v, ctrlpts, knotvector_u, knotvector_v):
-        self.reset(evalpts=True, ctrlpts=True)
-        self.degree_u = degree_u
-        self.degree_v = degree_v
-        self.set_ctrlpts(ctrlpts, ctrlpts_size_u, ctrlpts_size_v)
-        self.knotvector_u = knotvector_u
-        self.knotvector_v = knotvector_v
 
     @property
     def surfpts(self):
@@ -800,7 +656,7 @@ class Surface(Abstract.Surface):
         """ 2D control points.
 
         The getter returns a tuple of 2D control points (weighted control points + weights if NURBS) in *[u][v]* format.
-        The rows of the returned tuple correspond to V-direction and the columns correspond to U-direction.
+        The rows of the returned tuple correspond to v-direction and the columns correspond to u-direction.
 
         The following example can be used to traverse 2D control points:
 
@@ -845,8 +701,8 @@ class Surface(Abstract.Surface):
             Please note that the setter doesn't check for inconsistencies and using the setter is not recommended.
             Instead of the setter property, please use :func:`.set_ctrlpts()` function.
 
-        :getter: Gets the control points in U and V directions
-        :setter: Sets the control points in U and V directions
+        :getter: Gets the control points as a 2-dimensional array in [u][v] format
+        :setter: Sets the control points as a 2-dimensional array in [u][v] format
         :type: list
         """
         ret_list = []
@@ -873,7 +729,7 @@ class Surface(Abstract.Surface):
         self._dimension = len(value[0][0])
 
         # Make sure that all numbers are float type
-        ctrlpts2d = [[None for _ in range(0, self._control_points_size_v)]
+        ctrlpts2d = [[[] for _ in range(0, self._control_points_size_v)]
                      for _ in range(0, self._control_points_size_u)]
         for u in range(0, self._control_points_size_u):
             for v in range(0, self._control_points_size_v):
@@ -903,9 +759,9 @@ class Surface(Abstract.Surface):
 
         :param ctrlpts: input control points as a list of coordinates
         :type ctrlpts: list
-        :param size_u: size of the control points grid in U-direction
+        :param size_u: size of the control points grid on the u-direction
         :type size_u: int
-        :param size_v: size of the control points grid in V-direction
+        :param size_v: size of the control points grid on the v-direction
         :type size_v: int
         :return: None
         """
@@ -918,9 +774,9 @@ class Surface(Abstract.Surface):
 
         # Check array size validity
         if size_u < self._degree_u + 1:
-            raise ValueError("Number of control points in u-direction should be at least degree + 1")
+            raise ValueError("Number of control points on the u-direction should be at least degree + 1")
         if size_v < self._degree_v + 1:
-            raise ValueError("Number of control points in v-direction should be at least degree + 1")
+            raise ValueError("Number of control points on the v-direction should be at least degree + 1")
 
         # Estimate dimension by checking the size of the first element
         self._dimension = len(ctrlpts[0])
@@ -952,65 +808,46 @@ class Surface(Abstract.Surface):
 
     @property
     def knotvector_u(self):
-        """ Knot vector for U direction.
+        """ Knot vector for u-direction.
 
-        :getter: Gets the knot vector for U direction
-        :setter: Sets the knot vector for U direction
+        :getter: Gets the knot vector for u-direction
+        :setter: Sets the knot vector for u-direction
         :type: list
         """
         return tuple(self._knot_vector_u)
 
     @knotvector_u.setter
     def knotvector_u(self, value):
-        if self._degree_u == 0 or self._control_points_size_u == 0:
-            raise ValueError("Set degree and control points first (u-direction)")
+        # Call parent property setter
+        super(Surface, self.__class__).knotvector_u.fset(self, value)
 
-        # Normalize the input knot vector
-        value_normalized = utilities.normalize_knot_vector(value)
-
-        # Check knot vector validity
-        if not utilities.check_knot_vector(self._degree_u, value_normalized, self._control_points_size_u):
-            raise ValueError("Input is not a valid knot vector (u-direction)")
-
-        # Clean up the surface points
-        self.reset(evalpts=True)
-
-        # Set knot vector u
-        self._knot_vector_u = [float(kv) for kv in value_normalized]
+        # Normalize knot vector
+        self._knot_vector_u = utilities.normalize_knot_vector(self._knot_vector_u, decimals=self._precision)
 
     @property
     def knotvector_v(self):
-        """ Knot vector for V direction.
+        """ Knot vector for v-direction.
 
-        :getter: Gets the knot vector for V direction
-        :setter: Sets the knot vector for V direction
+        :getter: Gets the knot vector for v-direction
+        :setter: Sets the knot vector for v-direction
         :type: list
         """
         return tuple(self._knot_vector_v)
 
     @knotvector_v.setter
     def knotvector_v(self, value):
-        if self._degree_v == 0 or self._control_points_size_v == 0:
-            raise ValueError("Set degree and control points first (v-direction)")
+        # Call parent property setter
+        super(Surface, self.__class__).knotvector_v.fset(self, value)
 
-        # Normalize the input knot vector
-        value_normalized = utilities.normalize_knot_vector(value)
-
-        # Check knot vector validity
-        if not utilities.check_knot_vector(self._degree_v, value_normalized, self._control_points_size_v):
-            raise ValueError("Input is not a valid knot vector (v-direction)")
-
-        # Clean up the surface points
-        self.reset(evalpts=True)
-
-        # Set knot vector v
-        self._knot_vector_v = [float(kv) for kv in value_normalized]
+        # Normalize knot vector
+        self._knot_vector_v = utilities.normalize_knot_vector(self._knot_vector_v, decimals=self._precision)
 
     def save(self, file_name):
         """ Saves the surface as a pickled file.
 
         :param file_name: name of the file to be saved
         :type file_name: str
+        :raises IOError: an error occurred writing the file
         """
         # Create a dictionary from the surface data
         expdata = {'rational': self._rational,
@@ -1030,6 +867,7 @@ class Surface(Abstract.Surface):
 
         :param file_name: name of the file to be loaded
         :type file_name: str
+        :raises IOError: an error occurred reading the file
         """
         impdata = read_pickle(file_name)
 
@@ -1073,7 +911,7 @@ class Surface(Abstract.Surface):
             del self._surface_points[:]
 
     def transpose(self):
-        """ Transposes the surface by swapping U and V directions. """
+        """ Transposes the surface by swapping u- and v-directions. """
         # Transpose existing data
         degree_u_new = self._degree_v
         degree_v_new = self._degree_u
@@ -1110,9 +948,9 @@ class Surface(Abstract.Surface):
     def surfpt(self, u, v):
         """ Evaluates the surface at the given (u,v) parameter.
 
-        :param u: parameter in the U direction
+        :param u: parameter on the u-direction
         :type u: float
-        :param v: parameter in the V direction
+        :param v: parameter on the v-direction
         :type v: float
         :return: evaluated surface point at the given knot values
         :rtype: list
@@ -1136,18 +974,30 @@ class Surface(Abstract.Surface):
     def evaluate(self, **kwargs):
         """ Evaluates the surface.
 
-        Keyword arguments:
+        **The evaluated surface points are stored in :py:attr:`~evalpts` property.**
 
-        * ``start_u``: start parameter in u-direction
-        * ``stop_u``: stop parameter in u-direction
-        * ``start_v``: start parameter in v-direction
-        * ``stop_v``: stop parameter in v-direction
+        Keyword arguments:
+            * ``start_u``: start parameter on the u-direction
+            * ``stop_u``: stop parameter on the u-direction
+            * ``start_v``: start parameter on the v-direction
+            * ``stop_v``: stop parameter on the v-direction
 
         The ``start_u``, ``start_v`` and ``stop_u`` and ``stop_v`` parameters allow evaluation of a surface segment
         in the range  *[start_u, stop_u][start_v, stop_v]* i.e. the surface will also be evaluated at the ``stop_u``
         and ``stop_v`` parameter values.
 
-        .. note:: The evaluated surface points are stored in :py:attr:`~evalpts`.
+        The following examples illustrate the usage of the keyword arguments.
+
+        .. code-block:: python
+
+            # Start evaluating in range u=[0, 0.7] and v=[0.1, 1]
+            surf.evaluate(stop_u=0.7, start_v=0.1)
+
+            # Start evaluating in range u=[0, 1] and v=[0.1, 0.3]
+            surf.evaluate(start_v=0.1, stop_v=0.3)
+
+            # Get the evaluated points
+            surface_points = surf.evalpts
 
         """
         # Check all parameters are set before the surface evaluation
@@ -1166,16 +1016,15 @@ class Surface(Abstract.Surface):
         # Clean up the surface points
         self.reset(evalpts=True)
 
-        # Compute knots in the range
-        knots_u = utilities.linspace(start_u, stop_u, self.sample_size)
-        knots_v = utilities.linspace(start_v, stop_v, self.sample_size)
-
-        spts = self._evaluator.evaluate(knots_u=knots_u, knots_v=knots_v,
+        # Evaluate
+        spts = self._evaluator.evaluate(start_u=start_u, stop_u=stop_u, start_v=start_v, stop_v=stop_v,
                                         degree_u=self.degree_u, degree_v=self.degree_v,
                                         knotvector_u=self.knotvector_u, knotvector_v=self.knotvector_v,
                                         ctrlpts_size_u=self.ctrlpts_size_u, ctrlpts_size_v=self.ctrlpts_size_v,
                                         ctrlpts=self._control_points2D,
-                                        dimension=self._dimension)
+                                        sample_size=self.sample_size,
+                                        dimension=self._dimension,
+                                        precision=self._precision)
 
         self._surface_points = spts
 
@@ -1187,9 +1036,9 @@ class Surface(Abstract.Surface):
         * SKL[0][1] will be the 1st derivative w.r.t. v
         * SKL[2][1] will be the 2nd derivative w.r.t. u and 1st derivative w.r.t. v
 
-        :param u: parameter in the U direction
+        :param u: parameter on the u-direction
         :type u: float
-        :param v: parameter in the V direction
+        :param v: parameter on the v-direction
         :type v: float
         :param order: derivative order
         :type order: integer
@@ -1201,31 +1050,13 @@ class Surface(Abstract.Surface):
         # Check u and v parameters are correct
         utilities.check_uv(u, v)
 
-        # Algorithm A3.6
-        du = min(self._degree_u, order)
-        dv = min(self._degree_v, order)
-
-        SKL = [[[0.0 for _ in range(self._dimension)] for _ in range(dv + 1)] for _ in range(du + 1)]
-
-        span_u = helpers.find_span(self.knotvector_u, self._control_points_size_u, u)
-        bfunsders_u = helpers.basis_function_ders(self._degree_u, self._knot_vector_u, span_u, u, du)
-        span_v = helpers.find_span(self.knotvector_v, self._control_points_size_v, v)
-        bfunsders_v = helpers.basis_function_ders(self._degree_v, self._knot_vector_v, span_v, v, dv)
-
-        for k in range(0, du + 1):
-            temp = [[] for _ in range(self._degree_v + 1)]
-            for s in range(0, self._degree_v + 1):
-                temp[s] = [0.0 for _ in range(self._dimension)]
-                for r in range(0, self._degree_u + 1):
-                    cu = span_u - self._degree_u + r
-                    cv = span_v - self._degree_v + s
-                    temp[s][:] = [tmp + (bfunsders_u[k][r] * cp) for tmp, cp in
-                                  zip(temp[s], self._control_points2D[cu][cv])]
-
-            dd = min(order - k, dv)
-            for l in range(0, dd + 1):
-                for s in range(0, self._degree_v + 1):
-                    SKL[k][l][:] = [elem + (bfunsders_v[l][s] * tmp) for elem, tmp in zip(SKL[k][l], temp[s])]
+        SKL = self._evaluator.derivatives_single(knot_u=u, knot_v=v, deriv_order=order,
+                                                 degree_u=self.degree_u, degree_v=self.degree_v,
+                                                 knotvector_u=self.knotvector_u, knotvector_v=self.knotvector_v,
+                                                 ctrlpts_size_u=self.ctrlpts_size_u,
+                                                 ctrlpts_size_v=self.ctrlpts_size_v,
+                                                 ctrlpts=self._control_points2D,
+                                                 dimension=self._dimension)
 
         # Return the derivatives
         return SKL
@@ -1236,9 +1067,9 @@ class Surface(Abstract.Surface):
 
         The output returns a list containing the starting point (i.e. origin) of the vector and the vectors themselves.
 
-        :param u: parameter in the U direction
+        :param u: parameter on the u-direction
         :type u: float
-        :param v: parameter in the V direction
+        :param v: parameter on the v-direction
         :type v: float
         :param normalize: if True, the returned tangent vector is converted to a unit vector
         :type normalize: bool
@@ -1296,9 +1127,9 @@ class Surface(Abstract.Surface):
 
         The output returns a list containing the starting point (i.e. origin) of the vector and the vector itself.
 
-        :param u: parameter in the U direction
+        :param u: parameter on the u-direction
         :type u: float
-        :param v: parameter in the V direction
+        :param v: parameter on the v-direction
         :type v: float
         :param normalize: if True, the returned normal vector is converted to a unit vector
         :type normalize: bool
@@ -1356,15 +1187,15 @@ class Surface(Abstract.Surface):
 
     # Insert knot 'r' times at the given (u, v) parametric coordinates
     def insert_knot(self, u=None, v=None, ru=1, rv=1, check_r=True):
-        """ Inserts the given knots and updates the control points array and the knot vectors.
+        """ Inserts the knot in single (single u or v) or multi-dimensions ((u,v) pair).
 
-        :param u: Knot to be inserted in U-direction
+        :param u: Knot to be inserted on the u-direction
         :type u: float
-        :param v: Knot to be inserted in V-direction
+        :param v: Knot to be inserted on the v-direction
         :type v: float
-        :param ru: Number of knot insertions in U-direction
+        :param ru: Number of knot insertions on the u-direction
         :type ru: int
-        :param rv: Number of knot insertions in V-direction
+        :param rv: Number of knot insertions on the v-direction
         :type rv: int
         :param check_r: enables/disables number of knot insertions check
         :type check_r: bool
@@ -1379,74 +1210,26 @@ class Surface(Abstract.Surface):
             utilities.check_uv(u, v)
 
         if not isinstance(ru, int) or ru < 0:
-            raise ValueError("Number of insertions in U-direction must be a positive integer")
+            raise ValueError("Number of insertions on the u-direction must be a positive integer")
 
         if not isinstance(rv, int) or rv < 0:
-            raise ValueError("Number of insertions in V-direction must be a positive integer")
+            raise ValueError("Number of insertions on the v-direction must be a positive integer")
 
         # Algorithm A5.3
-        p = self._degree_u
-        q = self._degree_v
-
         if u:
-            np = self._control_points_size_u
-            mp = self._control_points_size_v
-
-            s_u = helpers.find_multiplicity(u, self._knot_vector_u)
+            s_u = helpers.find_multiplicity(u, self.knotvector_u)
 
             # Check if it is possible add that many number of knots
-            if check_r and ru > p - s_u:
-                warnings.warn("Cannot insert " + str(ru) + " knots in the U direction")
+            if check_r and ru > self.degree_u - s_u:
+                warnings.warn("Cannot insert " + str(ru) + " knots on the u-direction")
                 can_insert_knot = False
 
             if can_insert_knot:
-                k_u = helpers.find_span(self.knotvector_u, self._control_points_size_u, u)
-
-                # Initialize new knot vector array
-                UQ = [None for _ in range(len(self._knot_vector_u) + ru)]
-                # Initialize new control points array (control points can be weighted or not)
-                Q = [[None for _ in range(self._control_points_size_v)]
-                     for _ in range(self._control_points_size_u + ru)]
-                # Initialize a local array of length p + 1
-                R = [None for _ in range(p + 1)]
-
-                # Load new knot vector
-                for i in range(0, k_u + 1):
-                    UQ[i] = self._knot_vector_u[i]
-                for i in range(1, ru + 1):
-                    UQ[k_u + i] = u
-                for i in range(k_u + 1, len(self._knot_vector_u)):
-                    UQ[i + ru] = self._knot_vector_u[i]
-
-                # Save the alphas
-                alpha = [[0.0 for _ in range(ru + 1)] for _ in range(p - s_u)]
-                for j in range(1, ru + 1):
-                    L = k_u - p + j
-                    for i in range(0, p - j - s_u + 1):
-                        alpha[i][j] = (u - self._knot_vector_u[L + i]) / (
-                            self._knot_vector_u[i + k_u + 1] - self._knot_vector_u[L + i])
-
-                # For each row do
-                for row in range(0, mp):
-                    for i in range(0, k_u - p + 1):
-                        Q[i][row] = self._control_points2D[i][row]
-                    for i in range(k_u - s_u, np):
-                        Q[i + ru][row] = self._control_points2D[i][row]
-                    # Load auxiliary control points
-                    for i in range(0, p - s_u + 1):
-                        R[i] = copy.deepcopy(self._control_points2D[k_u - p + i][row])
-                    # Insert the knot r times
-                    for j in range(1, ru + 1):
-                        L = k_u - p + j
-                        for i in range(0, p - j - s_u + 1):
-                            R[i][:] = [alpha[i][j] * elem2 + (1.0 - alpha[i][j]) * elem1 for elem1, elem2 in
-                                       zip(R[i], R[i + 1])]
-                        Q[L][row] = copy.deepcopy(R[0])
-                        Q[k_u + ru - j - s_u][row] = copy.deepcopy(R[p - j - s_u])
-                    # Load the remaining control points
-                    L = k_u - p + ru
-                    for i in range(L + 1, k_u - s_u):
-                        Q[i][row] = copy.deepcopy(R[i - L])
+                UQ, Q = self._evaluator.insert_knot_u(knot=u, r=ru, s=s_u, degree=self.degree_u,
+                                                      knotvector=self.knotvector_u,
+                                                      ctrlpts_size_u=self.ctrlpts_size_u,
+                                                      ctrlpts_size_v=self.ctrlpts_size_v,
+                                                      ctrlpts=self._control_points2D)
 
                 # Update class variables after knot insertion
                 self._knot_vector_u = UQ
@@ -1459,64 +1242,19 @@ class Surface(Abstract.Surface):
                         self._control_points.append(dir_v)
 
         if v:
-            np = self._control_points_size_u
-            mp = self._control_points_size_v
-
-            s_v = helpers.find_multiplicity(v, self._knot_vector_v)
+            s_v = helpers.find_multiplicity(v, self.knotvector_v)
 
             # Check if it is possible add that many number of knots
-            if check_r and rv > q - s_v:
-                warnings.warn("Cannot insert " + str(rv) + " knots in the V direction")
+            if check_r and rv > self.degree_v - s_v:
+                warnings.warn("Cannot insert " + str(rv) + " knots on the v-direction")
                 can_insert_knot = False
 
             if can_insert_knot:
-                k_v = helpers.find_span(self.knotvector_v, self._control_points_size_v, v)
-
-                # Initialize new knot vector array
-                VQ = [None for _ in range(len(self._knot_vector_v) + rv)]
-                # Initialize new control points array (control points can be weighted or not)
-                Q = [[None for _ in range(self._control_points_size_v + rv)]
-                     for _ in range(self._control_points_size_u)]
-                # Initialize a local array of length q + 1
-                R = [None for _ in range(q + 1)]
-
-                # Load new knot vector
-                for i in range(0, k_v + 1):
-                    VQ[i] = self._knot_vector_v[i]
-                for i in range(1, rv + 1):
-                    VQ[k_v + i] = v
-                for i in range(k_v + 1, len(self._knot_vector_v)):
-                    VQ[i + rv] = self._knot_vector_v[i]
-
-                # Save the alphas
-                alpha = [[0.0 for _ in range(rv + 1)] for _ in range(q - s_v)]
-                for j in range(1, rv + 1):
-                    L = k_v - q + j
-                    for i in range(0, q - j - s_v + 1):
-                        alpha[i][j] = (v - self._knot_vector_v[L + i]) / (
-                            self._knot_vector_v[i + k_v + 1] - self._knot_vector_v[L + i])
-
-                # For each row do
-                for col in range(0, np):
-                    for i in range(0, k_v - q + 1):
-                        Q[col][i] = self._control_points2D[col][i]
-                    for i in range(k_v - s_v, mp):
-                        Q[col][i + rv] = self._control_points2D[col][i]
-                    # Load auxiliary control points
-                    for i in range(0, q - s_v + 1):
-                        R[i] = copy.deepcopy(self._control_points2D[col][k_v - q + i])
-                    # Insert the knot r times
-                    for j in range(1, rv + 1):
-                        L = k_v - q + j
-                        for i in range(0, q - j - s_v + 1):
-                            R[i][:] = [alpha[i][j] * elem2 + (1.0 - alpha[i][j]) * elem1 for elem1, elem2 in
-                                       zip(R[i], R[i + 1])]
-                        Q[col][L] = copy.deepcopy(R[0])
-                        Q[col][k_v + rv - j - s_v] = copy.deepcopy(R[q - j - s_v])
-                    # Load the remaining control points
-                    L = k_v - q + rv
-                    for i in range(L + 1, k_v - s_v):
-                        Q[col][i] = copy.deepcopy(R[i - L])
+                VQ, Q = self._evaluator.insert_knot_v(knot=v, r=rv, s=s_v, degree=self.degree_v,
+                                                      knotvector=self.knotvector_v,
+                                                      ctrlpts_size_u=self.ctrlpts_size_u,
+                                                      ctrlpts_size_v=self.ctrlpts_size_v,
+                                                      ctrlpts=self._control_points2D)
 
                 # Update class variables after knot insertion
                 self._knot_vector_v = VQ
@@ -1533,12 +1271,12 @@ class Surface(Abstract.Surface):
             self.evaluate()
 
     def split_u(self, t=-1):
-        """ Splits the surface at the input parametric coordinate in U-direction.
+        """ Splits the surface at the input parametric coordinate on the u-direction.
 
-        This method splits the surface into two pieces at the given parametric coordinate in U-direction,
-        generates two different surface objects and returns them. It doesn't change anything on the initial surface.
+        This method splits the surface into two pieces at the given parametric coordinate on the u-direction,
+        generates two different surface objects and returns them. It doesn't change anything on the operating surface.
 
-        :param t: parametric coordinate in U-direction
+        :param t: parametric coordinate on the u-direction
         :type t: float
         :return: a list of surface as the split pieces of the initial surface
         :rtype: Multi.MultiSurface
@@ -1605,12 +1343,12 @@ class Surface(Abstract.Surface):
         return ret_val
 
     def split_v(self, t=-1):
-        """ Splits the surface at the input parametric coordinate in V-direction.
+        """ Splits the surface at the input parametric coordinate on the v-direction.
 
-        This method splits the surface into two pieces at the given parametric coordinate in V-direction,
-        generates two different surface objects and returns them. It doesn't change anything on the initial surface.
+        This method splits the surface into two pieces at the given parametric coordinate on the v-direction,
+        generates two different surface objects and returns them. It doesn't change anything on the operating surface.
 
-        :param t: parametric coordinate in U-direction
+        :param t: parametric coordinate on the v-direction
         :type t: float
         :return: a list of surface as the split pieces of the initial surface
         :rtype: Multi.MultiSurface
@@ -1695,7 +1433,7 @@ class Surface(Abstract.Surface):
         # Work with an identical copy
         surf = copy.deepcopy(self)
 
-        # U-direction
+        # Process u-direction
         knots_u = surf.knotvector_u[surf.degree_u + 1:-(surf.degree_u + 1)]
         while knots_u:
             knot = knots_u[0]
@@ -1705,7 +1443,7 @@ class Surface(Abstract.Surface):
             knots_u = surf.knotvector_u[surf.degree_u + 1:-(surf.degree_u + 1)]
         surf_list.append(surf)
 
-        # Work on the split surfaces in V-direction
+        # Process v-direction
         multi_surf = Multi.MultiSurface()
         for surf in surf_list:
             knots_v = surf.knotvector_v[surf.degree_v + 1:-(surf.degree_v + 1)]
@@ -1748,15 +1486,18 @@ def save_pickle(data_dict, file_name):
     :type data_dict: dict
     :param file_name: name of the file to be saved
     :type file_name: str
+    :raises IOError: an error occurred writing the file
     """
     # Try opening the file for writing
     try:
         with open(file_name, 'wb') as fp:
             # Pickle the data dictionary
             pickle.dump(data_dict, fp)
-    except IOError:
-        # Show a warning on failure to open file
-        warnings.warn("File " + str(file_name) + " cannot be opened for writing.")
+    except IOError as e:
+        print("An error occurred. {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def read_pickle(file_name):
@@ -1768,6 +1509,7 @@ def read_pickle(file_name):
     :type file_name: str
     :return: data dictionary
     :rtype: dict
+    :raises IOError: an error occurred reading the file
     """
     # Try opening the file for reading
     try:
@@ -1775,6 +1517,8 @@ def read_pickle(file_name):
             # Read and return the pickled file
             impdata = pickle.load(fp)
             return impdata
-    except IOError:
-        # Raise an exception on failure to open file
-        raise IOError("File " + str(file_name) + " cannot be opened for reading.")
+    except IOError as e:
+        print("An error occurred. {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise

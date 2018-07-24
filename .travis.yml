@@ -5,7 +5,7 @@ language: python
 python:
   - "2.7"
   - "3.6"
-  - "pypy"
+#  - "pypy"
 
 # branch safelist
 branches:
@@ -14,13 +14,20 @@ branches:
     - 3.x
     - 2.x
 
+# define environment variables
+env:
+  - MPLBACKEND="Agg"
+
 # install required packages
 install:
+  - pip install setuptools --upgrade
+  - pip install numpy matplotlib
   - pip install pytest pytest-cov
   - pip install codecov
 
 # install package and run tests
-script: "python setup.py develop && pytest --cov=./"
+#script: "python setup.py develop && pytest --cov=./"
+script: 'python setup.py develop && python setup.py test -a "--cov=./"'
 
 # call at the end of CI build
 after_success:

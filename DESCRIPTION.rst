@@ -1,10 +1,14 @@
 NURBS-Python (geomdl)
 ^^^^^^^^^^^^^^^^^^^^^
 
-|DOI|_ |RTD|_ |TRAVISCI|_ |APPVEYOR|_ |WAFFLEIO|_
+|DOI|_ |ANACONDA|_
 
-Description
-===========
+|RTD|_ |TRAVISCI|_ |APPVEYOR|_ |CODECOV|_
+
+|WAFFLEIO|_
+
+Introduction
+============
 
 NURBS-Python (geomdl) provides fully object-oriented Non-Uniform Rational B-Spline (NURBS) surface and curve data
 structures and extensible advanced computation algorithms in pure python. It allows users to directly visualize the
@@ -62,8 +66,8 @@ NURBS-Python is licensed under the MIT License.
 .. |DOI| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.815010.svg
 .. _DOI: https://doi.org/10.5281/zenodo.815010
 
-.. |RTD| image:: https://readthedocs.org/projects/nurbs-python/badge/?version=stable
-.. _RTD: http://nurbs-python.readthedocs.io/en/stable/?badge=stable
+.. |RTD| image:: https://readthedocs.org/projects/nurbs-python/badge/?version=latest
+.. _RTD: http://nurbs-python.readthedocs.io/en/stable/?badge=latest
 
 .. |WAFFLEIO| image:: https://badge.waffle.io/orbingol/NURBS-Python.svg?columns=all
 .. _WAFFLEIO: https://waffle.io/orbingol/NURBS-Python
@@ -73,3 +77,9 @@ NURBS-Python is licensed under the MIT License.
 
 .. |APPVEYOR| image:: https://ci.appveyor.com/api/projects/status/github/orbingol/nurbs-python?branch=master&svg=true
 .. _APPVEYOR: https://ci.appveyor.com/project/orbingol/nurbs-python
+
+.. |ANACONDA| image:: https://anaconda.org/orbingol/geomdl/badges/version.svg
+.. _ANACONDA: https://anaconda.org/orbingol/geomdl
+
+.. |CODECOV| image:: https://codecov.io/gh/orbingol/NURBS-Python/branch/master/graph/badge.svg
+.. _CODECOV: https://codecov.io/gh/orbingol/NURBS-Python

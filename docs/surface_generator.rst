@@ -13,20 +13,19 @@ The following example illustrates a sample usage of the B-Spline surface generat
 
 .. code-block:: python
 
-    # Example script: grid/ex_surfgen.py
     from geomdl import BSpline
     from geomdl import CPGen
     from geomdl import utilities
     from geomdl.visualization import VisPlotly
 
-    # Generate a control points grid
+    # Generate a plane with the dimensions 50x100
     surfgrid = CPGen.Grid(50, 100)
 
-    # Split the width into 5 equal pieces and the height into 10 equal pieces
-    surfgrid.generate(5, 10)
+    # Generate a grid of 25x30
+    surfgrid.generate(25, 30)
 
-    # Generate 4 bumps on the grid
-    surfgrid.bumps(num_bumps=6, all_positive=False, bump_height=45)
+    # Generate bumps on the grid
+    surfgrid.bumps(num_bumps=5, all_positive=True, bump_height=20, base_extent=4)
 
     # Create a BSpline surface instance
     surf = BSpline.Surface()
@@ -36,7 +35,7 @@ The following example illustrates a sample usage of the B-Spline surface generat
     surf.degree_v = 3
 
     # Get the control points from the generated grid
-    surf.ctrlpts2d = surfgrid.grid()
+    surf.ctrlpts2d = surfgrid.grid
 
     # Set knot vectors
     surf.knotvector_u = utilities.generate_knot_vector(surf.degree_u, surf.ctrlpts_size_u)
@@ -58,3 +57,10 @@ The following example illustrates a sample usage of the B-Spline surface generat
     # Plot the split surface
     split_surf.render()
 
+:py:meth:`.CPGen.Grid.bumps()` method takes the following keyword arguments:
+
+* ``num_bumps``: Number of hills to be generated
+* ``all_positive``: The hills (bumps) can be in *-z* or *+z* directions. If this argument is ``False``, then the direction is randomly selected. If this argument is ``True``, then all the hills are generated in *+z* direction.
+* ``bump_height``: This argument defines the peak height of the generated hills
+* ``base_extent``: Due to the structure of the grid, the hill base can be defined as a square with the edge length of *a*. ``base_extent`` is defined by the value of *a/2*.
+* ``base_adjust``: This argument simply defines the padding of the area where the hills are generated. It accepts positive and negative values. A negative value means a padding to the inside of the grid and a positive value means padding to the outside of the grid.

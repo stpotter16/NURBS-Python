@@ -45,8 +45,14 @@ def vector_cross(vector1, vector2):
     :return: result of the cross product
     :rtype: list
     """
-    if not vector1 or not vector2:
-        raise ValueError("Input vectors cannot be empty")
+    try:
+        if vector1 is None or len(vector1) == 0 or vector2 is None or len(vector2) == 0:
+            raise ValueError("Input vectors cannot be empty")
+    except TypeError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise TypeError("Input must be a list or tuple")
+    except Exception:
+        raise
 
     if len(vector1) != 3 or len(vector2) != 3:
         raise ValueError("Input should contain 3 elements")
@@ -70,8 +76,14 @@ def vector_dot(vector1, vector2):
     :return: result of the dot product
     :rtype: list
     """
-    if vector1 is None or len(vector1) == 0 or vector2 is None or len(vector2) == 0:
-        raise ValueError("Input vectors cannot be empty")
+    try:
+        if vector1 is None or len(vector1) == 0 or vector2 is None or len(vector2) == 0:
+            raise ValueError("Input vectors cannot be empty")
+    except TypeError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise TypeError("Input must be a list or tuple")
+    except Exception:
+        raise
 
     # Compute dot product
     prod = 0
@@ -93,8 +105,14 @@ def vector_normalize(vector_in, decimals=6):
     :return: the normalized vector (i.e. the unit vector)
     :rtype: list
     """
-    if vector_in is None or len(vector_in) == 0:
-        raise ValueError("Input vector cannot be empty")
+    try:
+        if vector_in is None or len(vector_in) == 0:
+            raise ValueError("Input vector cannot be empty")
+    except TypeError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise TypeError("Input must be a list or tuple")
+    except Exception:
+        raise
 
     # Calculate magnitude of the vector
     sq_sum = 0
@@ -126,8 +144,14 @@ def vector_generate(start_pt, end_pt, normalize=False):
     :return: a vector from start_pt to end_pt
     :rtype: list
     """
-    if start_pt is None or len(start_pt) == 0 or end_pt is None or len(end_pt) == 0:
-        raise ValueError("Input points cannot be empty")
+    try:
+        if start_pt is None or len(start_pt) == 0 or end_pt is None or len(end_pt) == 0:
+            raise ValueError("Input points cannot be empty")
+    except TypeError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise TypeError("Input must be a list or tuple")
+    except Exception:
+        raise
 
     ret_vec = []
     for sp, ep in zip(start_pt, end_pt):
@@ -148,8 +172,14 @@ def point_translate(point_in, vector_in):
     :return: translated point
     :rtype: list
     """
-    if point_in is None or len(point_in) == 0 or vector_in is None or len(vector_in) == 0:
-        raise ValueError("Inputs cannot be empty")
+    try:
+        if point_in is None or len(point_in) == 0 or vector_in is None or len(vector_in) == 0:
+            raise ValueError("Input arguments cannot be empty")
+    except TypeError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise TypeError("Input must be a list or tuple")
+    except Exception:
+        raise
 
     # Translate the point using the input vector
     point_out = [coord + comp for coord, comp in zip(point_in, vector_in)]
@@ -180,12 +210,13 @@ def binomial_coefficient(k, i):
 
 
 def check_uv(u=None, v=None):
-    """ Checks if the parameter values are valid, i.e. between 0 and 1.
+    """ Checks if the parameter values are valid.
 
     :param u: u parameter
     :type u: float
     :param v: v parameter
     :type v: float
+    :raises ValueError: u and/or v is not in the interval [0, 1]
     """
     # Check u value
     if u is not None:
@@ -376,18 +407,24 @@ def frange(start, stop, step=1.0):
 
 
 # Normalizes knot vector
-def normalize_knot_vector(knot_vector=(), decimals=4):
+def normalize_knot_vector(knot_vector, decimals=4):
     """ Normalizes the input knot vector between 0 and 1.
 
-    :param knot_vector: input knot vector
-    :type knot_vector: tuple
+    :param knot_vector: knot vector to be normalized
+    :type knot_vector: list, tuple
     :param decimals: rounding number
     :type decimals: int
     :return: normalized knot vector
     :rtype: list
     """
-    if not knot_vector or len(knot_vector) == 0:
-        return knot_vector
+    try:
+        if knot_vector is None or len(knot_vector) == 0:
+            raise ValueError("Input knot vector cannot be empty")
+    except TypeError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise TypeError("Knot vector must be a list or tuple")
+    except Exception:
+        raise
 
     first_knot = float(knot_vector[0])
     last_knot = float(knot_vector[-1])
@@ -400,7 +437,7 @@ def normalize_knot_vector(knot_vector=(), decimals=4):
 
 
 # Generates a uniform knot vector using the given degree and the number of control points
-def generate_knot_vector(degree, num_ctrlpts):
+def generate_knot_vector(degree, num_ctrlpts, **kwargs):
     """ Generates a uniformly-spaced knot vector using the degree and the number of control points.
 
     It uses the following equation to generate knot vector:
@@ -410,6 +447,10 @@ def generate_knot_vector(degree, num_ctrlpts):
     where;
 
     p: degree, n+1: number of control points, m+1: number of knots
+
+    Keyword Arguments:
+
+        * ``clamped``: flag to choose from clamped or unclamped knot vector options. *Default: True*
 
     :param degree: degree
     :type degree: integer
@@ -421,37 +462,55 @@ def generate_knot_vector(degree, num_ctrlpts):
     if degree == 0 or num_ctrlpts == 0:
         raise ValueError("Input values should be different than zero.")
 
-    # First knots
-    knot_vector = [0.0 for _ in range(0, degree)]
+    # Get keyword arguments
+    clamped = kwargs.get('clamped', True)
+
+    # Number of repetitions at the start and end of the array
+    num_repeat = degree
 
     # Number of knots in the middle
     num_segments = num_ctrlpts - (degree + 1)
+
+    if not clamped:
+        # No repetitions at the start and end
+        num_repeat = 0
+        # Should conform the rule: m = n + p + 1
+        num_segments = degree + num_ctrlpts - 1
+
+    # First knots
+    knot_vector = [0.0 for _ in range(0, num_repeat)]
 
     # Middle knots
     knot_vector += linspace(0.0, 1.0, num_segments + 2)
 
     # Last knots
-    knot_vector += [1.0 for _ in range(0, degree)]
+    knot_vector += [1.0 for _ in range(0, num_repeat)]
 
     # Return auto-generated knot vector
     return knot_vector
 
 
 # Checks if the input knot vector follows the mathematical rules
-def check_knot_vector(degree=0, knot_vector=(), num_ctrlpts=0):
+def check_knot_vector(degree, knot_vector, num_ctrlpts):
     """ Checks if the input knot vector follows the mathematical rules.
 
     :param degree: degree of the curve or the surface
     :type degree: int
-    :param knot_vector: knot vector
+    :param knot_vector: knot vector to be checked
     :type knot_vector: list, tuple
     :param num_ctrlpts: number of control points
     :type num_ctrlpts: int
     :return: True if the knot vector is valid, False otherwise
     :rtype: bool
     """
-    if not knot_vector or len(knot_vector) == 0:
-        raise ValueError("Input knot vector cannot be empty")
+    try:
+        if knot_vector is None or len(knot_vector) == 0:
+            raise ValueError("Input knot vector cannot be empty")
+    except TypeError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise TypeError("Knot vector must be a list or tuple")
+    except Exception:
+        raise
 
     # Check the formula; m = p + n + 1
     if len(knot_vector) != degree + num_ctrlpts + 1:
@@ -467,14 +526,28 @@ def check_knot_vector(degree=0, knot_vector=(), num_ctrlpts=0):
     return True
 
 
-def color_generator():
-    """ Generates colors for control and evaluated curve/surface points plots.
+def color_generator(seed=None):
+    """ Generates random colors for control and evaluated curve/surface points plots.
+
+    The ``seed`` argument is used to set the random seed by directly passing the value to ``random.seed()`` function.
+    Please see the Python documentation for more details on the ``random`` module .
 
     Inspired from https://stackoverflow.com/a/14019260
 
+    :param seed: Sets the random seed
     :return: list of color strings in hex format
     :rtype: list
     """
-    r = lambda: random.randint(0, 255)
+    def r_int():
+        return random.randint(0, 255)
+    if seed is not None:
+        random.seed(seed)
     color_string = '#%02X%02X%02X'
-    return [color_string % (r(), r(), r()), color_string % (r(), r(), r())]
+    return [color_string % (r_int(), r_int(), r_int()), color_string % (r_int(), r_int(), r_int())]
+
+
+def init_var(instance):
+    if callable(instance):
+        return instance()
+    else:
+        return None

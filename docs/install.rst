@@ -43,8 +43,10 @@ installing the NURBS-Python library.
 Manual Install
 ==============
 
-Included *setup.py* script will take care of the installation and automatically copy/link the required files to
-your Python distribution's *site-packages* directory. First, you need to clone the repository to your computer.
+The initial step of the manual install is cloning the repository via ``git`` or downloading the ZIP archive from the
+`repository page <https://github.com/orbingol/NURBS-Python>`_ on GitHub. The package includes a *setup.py* script
+which will take care of the installation and automatically copy/link the required files to your Python distribution's
+*site-packages* directory.
 
 The following command will copy NURBS-Python package to your Python distribution's *site-packages* directory:
 
@@ -70,7 +72,7 @@ variable after import. The following example illustrates installation check on a
     Type "help", "copyright", "credits" or "license" for more information.
     >>> import geomdl
     >>> geomdl.__version__
-    '3.6.1'
+    '4.0.2'
     >>>
 
 Testing
@@ -80,6 +82,6 @@ The package includes ``tests/`` directory which contains all the automated testi
 These scripts require `pytest <https://pytest.readthedocs.io/en/latest>`_ installed on your Python distribution.
 After installing the required packages, you may execute the following from your favorite IDE or from the command line:
 
-``pytest``
+``pytest`` or ``py.test``
 
 pytest will automatically find the tests under ``tests/`` directory, execute them and show the results.

@@ -8,8 +8,31 @@
 import pytest
 from geomdl import utilities
 
+GEOMDL_DELTA = 10e-8
 
-def test_autogen_knot_vector():
+
+def test_generate_knot_vector1():
+    with pytest.raises(ValueError):
+        degree = 0
+        num_ctrlpts = 12
+        utilities.generate_knot_vector(degree, num_ctrlpts)
+
+
+def test_generate_knot_vector2():
+    with pytest.raises(ValueError):
+        degree = 4
+        num_ctrlpts = 0
+        utilities.generate_knot_vector(degree, num_ctrlpts)
+
+
+def test_generate_knot_vector3():
+    with pytest.raises(ValueError):
+        degree = 0
+        num_ctrlpts = 0
+        utilities.generate_knot_vector(degree, num_ctrlpts)
+
+
+def test_generate_knot_vector4():
     degree = 4
     num_ctrlpts = 12
     autogen_kv = utilities.generate_knot_vector(degree, num_ctrlpts)
@@ -17,7 +40,33 @@ def test_autogen_knot_vector():
     assert autogen_kv == result
 
 
-def test_check_knot_vector():
+def test_generate_knot_vector5():
+    # testing auto-generated unclamped knot vector
+    degree = 3
+    num_ctrlpts = 5
+    result = [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+    autogen_kv = utilities.generate_knot_vector(degree, num_ctrlpts, clamped=False)
+    assert autogen_kv == result
+
+
+def test_check_knot_vector1():
+    with pytest.raises(ValueError):
+        utilities.check_knot_vector(4, tuple(), 12)
+
+
+def test_check_knot_vector2():
+    to_check = utilities.check_knot_vector(4, (1, 2, 3, 4), 12)
+    result = False
+    assert to_check == result
+
+
+def test_check_knot_vector3():
+    to_check = utilities.check_knot_vector(3, (5, 3, 6, 5, 4, 5, 6), 3)
+    result = False
+    assert to_check == result
+
+
+def test_check_knot_vector4():
     degree = 4
     num_ctrlpts = 12
     autogen_kv = utilities.generate_knot_vector(degree, num_ctrlpts)
@@ -25,11 +74,29 @@ def test_check_knot_vector():
     assert check_result
 
 
-def test_normalize_knot_vector():
+def test_check_knot_vector5():
+    degree = 4
+    num_ctrlpts = 12
+    with pytest.raises(TypeError):
+        utilities.check_knot_vector(degree=degree, num_ctrlpts=num_ctrlpts, knot_vector=5)
+
+
+def test_normalize_knot_vector1():
+    # check for empty list/tuple
+    with pytest.raises(ValueError):
+        utilities.normalize_knot_vector(tuple())
+
+
+def test_normalize_knot_vector2():
     input_kv = (-5, -5, -3, -2, 2, 3, 5, 5)
     output_kv = [0.0, 0.0, 0.2, 0.3, 0.7, 0.8, 1.0, 1.0]
     to_check = utilities.normalize_knot_vector(input_kv)
     assert to_check == output_kv
+
+
+def test_normalize_knot_vector3():
+    with pytest.raises(TypeError):
+        utilities.normalize_knot_vector(5)
 
 
 def test_check_uv1():
@@ -84,6 +151,11 @@ def test_vector_dot2():
     assert to_check == result
 
 
+def test_vector_dot3():
+    with pytest.raises(TypeError):
+        utilities.vector_dot(5, 9.7)
+
+
 def test_vector_cross1():
     with pytest.raises(ValueError):
         vec1 = ()
@@ -106,6 +178,11 @@ def test_vector_cross3():
     assert to_check == result
 
 
+def test_vector_cross4():
+    with pytest.raises(TypeError):
+        utilities.vector_cross(5, 9.7)
+
+
 def test_vector_normalize1():
     with pytest.raises(ValueError):
         vec = ()
@@ -116,6 +193,11 @@ def test_vector_normalize2():
     with pytest.raises(ValueError):
         vec = (0, 0)
         utilities.vector_normalize(vec)
+
+
+def test_vector_normalize3():
+    with pytest.raises(TypeError):
+        utilities.vector_normalize(5)
 
 
 def test_vector3_normalize():
@@ -150,7 +232,12 @@ def test_vector_generate2():
     assert to_check_normalized == result_normalized
 
 
-def test_vector_translate1():
+def test_vector_generate3():
+    with pytest.raises(TypeError):
+        utilities.vector_generate(5, 9.7)
+
+
+def test_point_translate1():
     with pytest.raises(ValueError):
         pt1 = ()
         pt2 = (1, 2, 3)
@@ -163,6 +250,11 @@ def test_point_translate2():
     result = [6, 5, 5]
     to_check = utilities.point_translate(pt, vec)
     assert to_check == result
+
+
+def test_point_translate3():
+    with pytest.raises(TypeError):
+        utilities.point_translate(5, 9.7)
 
 
 def test_binomial_coefficient1():
@@ -183,7 +275,7 @@ def test_binomial_coefficient3():
     assert to_check == result
 
 
-def test_frange():
+def test_frange1():
     start = 5
     stop = 11
     step = 2
@@ -192,3 +284,30 @@ def test_frange():
         to_check.append(fr)
     result = [5.0, 7.0, 9.0, 11.0]
     assert to_check == result
+
+
+def test_frange2():
+    check = list(utilities.frange(0, 1, 0.1))
+    result = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    check_flag = True
+    for c, r in zip(check, result):
+        if abs(c - r) > GEOMDL_DELTA:
+            check_flag = False
+    assert check_flag
+
+
+def test_color_generator():
+    seed = 17  # some number to be used as the random seed
+    result = utilities.color_generator(seed)
+    to_check = utilities.color_generator(seed)
+    assert to_check == result
+
+
+def test_init_var1():
+    test_var_type = list
+    assert test_var_type() == utilities.init_var(test_var_type)
+
+
+def test_init_var2():
+    test_var_type = None
+    assert test_var_type == utilities.init_var(test_var_type)

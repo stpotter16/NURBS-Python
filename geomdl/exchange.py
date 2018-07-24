@@ -20,12 +20,26 @@ from .elements import Vertex, Triangle
 def import_txt(file_name, two_dimensional=False):
     """ Reads control points from a text file and generates a 1-D list of control points.
 
+    The following code examples illustrate importing different types of text files for curves and surfaces:
+
+    .. code-block:: python
+
+        # Import curve control points from a text file
+        curve_ctrlpts = exchange.import_txt(file_name="control_points.txt")
+
+        # Import surface control points from a text file (1-dimensional file)
+        surf_ctrlpts = exchange.import_txt(file_name="control_points.txt")
+
+        # Import surface control points from a text file (2-dimensional file)
+        surf_ctrlpts, size_u, size_v = exchange.import_txt(file_name="control_points.txt", two_dimensional=True)
+
     :param file_name: file name of the text file
     :type file_name: str
     :param two_dimensional: type of the text file
     :type two_dimensional: bool
     :return: list of control points, if two_dimensional, then also returns size in u- and v-directions
     :rtype: list
+    :raises IOError: an error occurred reading the file
     """
     ctrlpts = []
 
@@ -60,9 +74,11 @@ def import_txt(file_name, two_dimensional=False):
 
                     # Return control points
                     return ctrlpts
-    except IOError:
-        # Show a warning on failure to open file
-        warnings.warn("File " + str(file_name) + " cannot be opened for reading")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def export_txt(obj, file_name, two_dimensional=False):
@@ -78,6 +94,7 @@ def export_txt(obj, file_name, two_dimensional=False):
     :type file_name: str
     :param two_dimensional: type of the text file (only works for Surface objects)
     :type two_dimensional: bool
+    :raises IOError: an error occurred writing the file
     """
     # Check if the user has set any control points
     if obj.ctrlpts is None or len(obj.ctrlpts) == 0:
@@ -110,10 +127,11 @@ def export_txt(obj, file_name, two_dimensional=False):
                     # Fill coordinates
                     line = ",".join(str(c) for c in pt) + "\n"
                     fp.write(line)
-
-    except IOError:
-        # Show a warning on failure to open file
-        warnings.warn("File " + str(file_name) + " cannot be opened for writing")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def export_csv(obj, file_name, point_type='evalpts'):
@@ -125,6 +143,7 @@ def export_csv(obj, file_name, point_type='evalpts'):
     :type file_name: str
     :param point_type: ``ctrlpts`` for control points or ``evalpts`` for evaluated points
     :type point_type: str
+    :raises IOError: an error occurred writing the file
     """
     if not isinstance(obj, (Abstract.Curve, Abstract.Surface)):
         raise ValueError("Input object should be a curve or a surface")
@@ -157,10 +176,11 @@ def export_csv(obj, file_name, point_type='evalpts'):
                 line = ", ".join(str(c) for c in pt) + "\n"
                 # Write line to file
                 fp.write(line)
-
-    except IOError:
-        # Show a warning on failure to open file
-        warnings.warn("File " + str(file_name) + " cannot be opened for writing.")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def export_vtk(obj, file_name, point_type='evalpts'):
@@ -174,6 +194,7 @@ def export_vtk(obj, file_name, point_type='evalpts'):
     :type file_name: str
     :param point_type: ``ctrlpts`` for control points or ``evalpts`` for evaluated points
     :type point_type: str
+    :raises IOError: an error occurred writing the file
     """
     if not isinstance(obj, (Abstract.Curve, Abstract.Surface)):
         raise ValueError("Input object should be a curve or a surface")
@@ -200,24 +221,25 @@ def export_vtk(obj, file_name, point_type='evalpts'):
             for pt in points:
                 line = " ".join(str(c) for c in pt) + "\n"
                 fp.write(line)
-
-    except IOError:
-        # Show a warning on failure to open file
-        warnings.warn("File " + str(file_name) + " cannot be opened for writing.")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 # Saves surface(s) as a .obj file
 def export_obj(surf_in, file_name, **kwargs):
     """ Exports surface(s) as a .obj file.
 
+    Keyword Arguments:
+        * ``vertex_spacing``: size of the triangle edge in terms of points sampled on the surface. *Default: 2*
+
     :param surf_in: surface or surfaces to be saved
     :type surf_in: Abstract.Surface or Multi.MultiSurface
     :param file_name: name of the output file
     :type file_name: str
-
-    Keyword Arguments:
-        * *vertex_spacing* (``int``): size of the triangle edge in terms of points sampled on the surface
-
+    :raises IOError: an error occurred writing the file
     """
     vertex_spacing = kwargs.get('vertex_spacing', 2)
 
@@ -231,15 +253,15 @@ def export_obj(surf_in, file_name, **kwargs):
 def export_stl(surf_in, file_name, **kwargs):
     """ Exports surface(s) as a .stl file in plain text or binary format.
 
+    Keyword Arguments:
+        * ``binary``: flag to generate a binary STL file. *Default: True*
+        * ``vertex_spacing``: size of the triangle edge in terms of points sampled on the surface. *Default: 2*
+
     :param surf_in: surface or surfaces to be saved
     :type surf_in: Abstract.Surface or Multi.MultiSurface
     :param file_name: name of the output file
     :type file_name: str
-
-    Keyword Arguments:
-        * *binary* (``bool``): True if the saved STL file is going to be in binary format
-        * *vertex_spacing* (``int``): size of the triangle edge in terms of points sampled on the surface
-
+    :raises IOError: an error occurred writing the file
     """
     binary = kwargs.get('binary', True)
     vertex_spacing = kwargs.get('vertex_spacing', 2)
@@ -260,14 +282,14 @@ def export_stl(surf_in, file_name, **kwargs):
 def export_off(surf_in, file_name, **kwargs):
     """ Exports surface(s) as a .off file.
 
+    Keyword Arguments:
+        * ``vertex_spacing``: size of the triangle edge in terms of points sampled on the surface. *Default: 2*
+
     :param surf_in: surface or surfaces to be saved
     :type surf_in: Abstract.Surface or Multi.MultiSurface
     :param file_name: name of the output file
     :type file_name: str
-
-    Keyword Arguments:
-        * *vertex_spacing* (``int``): size of the triangle edge in terms of points sampled on the surface
-
+    :raises IOError: an error occurred writing the file
     """
     vertex_spacing = kwargs.get('vertex_spacing', 2)
 
@@ -275,6 +297,33 @@ def export_off(surf_in, file_name, **kwargs):
         _export_off_multi(surf_in, file_name=file_name, vertex_spacing=vertex_spacing)
     else:
         _export_off_single(surf_in, file_name=file_name, vertex_spacing=vertex_spacing)
+
+
+def import_smesh(file):
+    """ Generates NURBS surface(s) from smesh file(s).
+
+    *smesh* files are some text files which contain a set of NURBS surfaces. Each file in the set corresponds to one
+    NURBS surface. Most of the time, you receive multiple *smesh* files corresponding to an complete object composed of
+    several NURBS surfaces. The files have the extensions of ``txt`` or ``dat`` and they are named as
+
+    * ``smesh.X.Y.txt``
+    * ``smesh.X.dat``
+
+    where *X* and *Y* correspond to some integer value which defines the set the surface belongs to and part number of
+    the surface inside the complete object.
+
+    :param file: path to a directory containing smesh files or a single smesh file
+    :type file: str
+    :return: NURBS surface(s)
+    :rtype: NURBS.Surface or Multi.MultiSurface
+    :raises IOError: an error occurred reading the file
+    """
+    if os.path.isfile(file):
+        return _import_smesh_single(file)
+    elif os.path.isdir(file):
+        return _import_smesh_multi(file)
+    else:
+        raise IOError("Input is not a file or a directory")
 
 
 # Generates triangles
@@ -367,7 +416,7 @@ def _export_obj_single(surface, **kwargs):
         with open(file_name, 'w') as fp:
             fp.write("# Generated by NURBS-Python\n")
             vertices, triangles = _gen_triangles_vertices(surface.evalpts,
-                                                          surface.sample_size, surface.sample_size,
+                                                          surface.sample_size_u, surface.sample_size_v,
                                                           vertex_spacing)
 
             # Write vertices
@@ -388,8 +437,11 @@ def _export_obj_single(surface, **kwargs):
                 vl = t.vertex_ids
                 line = "f " + str(vl[0]) + " " + str(vl[1]) + " " + str(vl[2]) + "\n"
                 fp.write(line)
-    except IOError:
-        print("Cannot open " + str(file_name) + " for writing")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def _export_obj_multi(surface_list, **kwargs):
@@ -431,11 +483,14 @@ def _export_obj_multi(surface_list, **kwargs):
                     continue
 
                 # Set surface evaluation delta
-                surface.sample_size = surface_list.sample_size
+                if surface_list.sample_size_u != 0:
+                    surface.sample_size_u = surface_list.sample_size_u
+                if surface_list.sample_size_v != 0:
+                    surface.sample_size_v = surface_list.sample_size_v
 
                 # Generate triangles
                 vertices, triangles = _gen_triangles_vertices(surface.evalpts,
-                                                              surface.sample_size, surface.sample_size,
+                                                              surface.sample_size_u, surface.sample_size_v,
                                                               vertex_spacing)
 
                 # Collect vertices
@@ -470,8 +525,11 @@ def _export_obj_multi(surface_list, **kwargs):
                 fp.write(line)
             for line in str_f:
                 fp.write(line)
-    except IOError:
-        print("Cannot open " + str(file_name) + " for writing")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def _export_stl_ascii_single(surface, **kwargs):
@@ -499,7 +557,7 @@ def _export_stl_ascii_single(surface, **kwargs):
     try:
         with open(file_name, 'w') as fp:
             vertices, triangles = _gen_triangles_vertices(surface.evalpts,
-                                                          surface.sample_size, surface.sample_size,
+                                                          surface.sample_size_u, surface.sample_size_v,
                                                           vertex_spacing)
 
             fp.write("solid Surface\n")
@@ -513,15 +571,18 @@ def _export_stl_ascii_single(surface, **kwargs):
                 fp.write("\t\tendloop\n")
                 fp.write("\tendfacet\n")
             fp.write("endsolid Surface\n")
-    except IOError:
-        print("Cannot open " + str(file_name) + " for writing")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def _export_stl_ascii_multi(surface_list, **kwargs):
     """ Saves multiple surfaces as an ASCII .stl file.
 
     :param surface_list: list of surfaces to be saved
-    :type surface_list: Multi.MultiAbstract
+    :type surface_list: Multi.MultiSurface
 
     Keyword Arguments:
         * file_name (str): name of the output file
@@ -550,10 +611,13 @@ def _export_stl_ascii_multi(surface_list, **kwargs):
                     continue
 
                 # Set surface evaluation delta
-                surface.sample_size = surface_list.sample_size
+                if surface_list.sample_size_u != 0:
+                    surface.sample_size_u = surface_list.sample_size_u
+                if surface_list.sample_size_v != 0:
+                    surface.sample_size_v = surface_list.sample_size_v
 
                 vertices, triangles = _gen_triangles_vertices(surface.evalpts,
-                                                              surface.sample_size, surface.sample_size,
+                                                              surface.sample_size_u, surface.sample_size_v,
                                                               vertex_spacing)
 
                 for t in triangles:
@@ -567,8 +631,11 @@ def _export_stl_ascii_multi(surface_list, **kwargs):
                     fp.write("\tendfacet\n")
 
             fp.write("endsolid Surface\n")
-    except IOError:
-        print("Cannot open " + str(file_name) + " for writing")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def _export_stl_binary_single(surface, **kwargs):
@@ -598,7 +665,7 @@ def _export_stl_binary_single(surface, **kwargs):
     try:
         with open(file_name, 'wb') as fp:
             vertices, triangles = _gen_triangles_vertices(surface.evalpts,
-                                                          surface.sample_size, surface.sample_size,
+                                                          surface.sample_size_u, surface.sample_size_v,
                                                           vertex_spacing)
 
             # Write triangle list to the binary STL file
@@ -609,15 +676,18 @@ def _export_stl_binary_single(surface, **kwargs):
                 for v in t.vertices:
                     fp.write(struct.pack('<3f', *v.data))  # vertices
                 fp.write(b'\0\0')  # attribute byte count
-    except IOError:
-        print("Cannot open " + str(file_name) + " for writing")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def _export_stl_binary_multi(surface_list, **kwargs):
     """ Saves multiple surfaces as a binary .stl file.
 
     :param surface_list: list of surfaces to be saved
-    :type surface_list: Multi.MultiAbstract
+    :type surface_list: Multi.MultiSurface
 
     Keyword Arguments:
         * file_name (str): name of the output file
@@ -645,10 +715,13 @@ def _export_stl_binary_multi(surface_list, **kwargs):
                     continue
 
                 # Set surface evaluation delta
-                surface.sample_size = surface_list.sample_size
+                if surface_list.sample_size_u != 0:
+                    surface.sample_size_u = surface_list.sample_size_u
+                if surface_list.sample_size_v != 0:
+                    surface.sample_size_v = surface_list.sample_size_v
 
                 vertices, triangles = _gen_triangles_vertices(surface.evalpts,
-                                                              surface.sample_size, surface.sample_size,
+                                                              surface.sample_size_u, surface.sample_size_v,
                                                               vertex_spacing)
                 triangles_list += triangles
 
@@ -660,8 +733,11 @@ def _export_stl_binary_multi(surface_list, **kwargs):
                 for v in t.vertices:
                     fp.write(struct.pack('<3f', *v.data))  # vertices
                 fp.write(b'\0\0')  # attribute byte count
-    except IOError:
-        print("Cannot open " + str(file_name) + " for writing")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def _export_off_single(surface, **kwargs):
@@ -690,7 +766,7 @@ def _export_off_single(surface, **kwargs):
         with open(file_name, 'w') as fp:
             fp.write("OFF\n")
             vertices, triangles = _gen_triangles_vertices(surface.evalpts,
-                                                          surface.sample_size, surface.sample_size,
+                                                          surface.sample_size_u, surface.sample_size_v,
                                                           vertex_spacing)
 
             line = str(len(vertices) * len(vertices[0])) + " " + str(len(triangles)) + " 0\n"
@@ -706,8 +782,11 @@ def _export_off_single(surface, **kwargs):
                 vl = t.vertex_ids
                 line = "3 " + str(vl[0] - 1) + " " + str(vl[1] - 1) + " " + str(vl[2] - 1) + "\n"
                 fp.write(line)
-    except IOError:
-        print("Cannot open " + str(file_name) + " for writing")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
 def _export_off_multi(surface_list, **kwargs):
@@ -747,11 +826,14 @@ def _export_off_multi(surface_list, **kwargs):
                     continue
 
                 # Set surface evaluation delta
-                surface.sample_size = surface_list.sample_size
+                if surface_list.sample_size_u != 0:
+                    surface.sample_size_u = surface_list.sample_size_u
+                if surface_list.sample_size_v != 0:
+                    surface.sample_size_v = surface_list.sample_size_v
 
                 # Generate triangles
                 vertices, triangles = _gen_triangles_vertices(surface.evalpts,
-                                                              surface.sample_size, surface.sample_size,
+                                                              surface.sample_size_u, surface.sample_size_v,
                                                               vertex_spacing)
 
                 # Collect vertices
@@ -781,28 +863,15 @@ def _export_off_multi(surface_list, **kwargs):
                 fp.write(line)
             for line in str_f:
                 fp.write(line)
-    except IOError:
-        print("Cannot open " + str(file_name) + " for writing")
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
 
-def import_smesh(file_name):
+def _import_smesh_single(file_name):
     """ Generates a NURBS surface from a smesh file.
-
-    *smesh* files are some text files which contain a set of NURBS surfaces. Each file in the set corresponds to one
-    NURBS surface. Most of the time, you receive multiple *smesh* files corresponding to an complete object composed of
-    several NURBS surfaces. The files have the extensions of ``txt`` or ``dat`` and they are named as
-
-    * ``smesh.X.Y.txt``
-    * ``smesh.X.dat``
-
-    where *X* and *Y* correspond to some integer value which defines the set the surface belongs to and part number of
-    the surface inside the complete object.
-
-    This function reads a single smesh file and converts it into a NURBS surface. Please see the following functions
-    for reading the smesh file sets:
-
-    * :func:`.import_smesh_list()`
-    * :func:`.import_smesh_dir()`
 
     :param file_name: smesh file to read
     :type file_name: str
@@ -813,13 +882,15 @@ def import_smesh(file_name):
         with open(file_name, 'r') as fp:
             content = fp.readlines()
             content = [x.strip().split() for x in content]
-    except IOError:
-        print("Cannot open " + str(file_name) + " for reading")
-        return
+    except IOError as e:
+        print("An error occurred: {}".format(e.args[-1]))
+        raise e
+    except Exception:
+        raise
 
     # 1st line defines the dimension and it must be 3
     if int(content[0][0]) != 3:
-        warnings.warn("Input smesh file" + str(file_name) + " is not a surface")
+        warnings.warn("Input smesh file" + str(file_name) + " is not a surface", UserWarning)
         return
 
     # Create a NURBS surface instance and fill with the data read from smesh file
@@ -838,7 +909,7 @@ def import_smesh(file_name):
     ctrlpts_smesh = content[5:ctrlpts_end]
 
     # smesh files have the control points in u-row order format
-    ctrlpts = compatibility.change_ctrlpts_row_order(ctrlpts_smesh, dim_u, dim_v)
+    ctrlpts = compatibility.flip_ctrlpts_u(ctrlpts_smesh, dim_u, dim_v)
 
     # smesh files store control points in format (x, y, z, w) -- Rhino format
     ctrlptsw = compatibility.generate_ctrlptsw(ctrlpts)
@@ -854,22 +925,8 @@ def import_smesh(file_name):
     return surf
 
 
-def import_smesh_list(file_list):
-    """ Creates a MultiSurface instance from a list of smesh files.
-
-    :param file_list: file list containing the names of the smesh files
-    :type file_list: list, tuple
-    :return: a MultiSurface instance containing all NURBS surfaces
-    :rtype: Multi.MultiSurface
-    """
-    ret = Multi.MultiSurface()
-    for file in file_list:
-        ret.add(import_smesh(file))
-    return ret
-
-
-def import_smesh_dir(file_path):
-    """ Creates a MultiSurface instance from a list of smesh files inside a directory.
+def _import_smesh_multi(file_path):
+    """ Generates NURBS surfaces from smesh files contained in the input directory.
 
     :param file_path: path to the directory containing smesh files
     :type file_path: str
@@ -877,4 +934,7 @@ def import_smesh_dir(file_path):
     :rtype: Multi.MultiSurface
     """
     files = sorted([os.path.join(file_path, f) for f in os.listdir(file_path)])
-    return import_smesh_list(files)
+    surf = Multi.MultiSurface()
+    for f in files:
+        surf.add(_import_smesh_single(f))
+    return surf
