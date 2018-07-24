@@ -289,7 +289,9 @@ def surfRij(span_u, span_v, knot_u, knot_v, degree_u, degree_v, knotvec_u, knotv
 
     surfRij = (Nip * Njq) / denominator
 
-    return surfRij	
+    return surfRij
+
+	
 
 def basis_function_ders(degree, knot_vector, span, knot, order):
     """ Finds derivatives of the basis functions.
@@ -380,6 +382,80 @@ def basis_function_ders(degree, knot_vector, span, knot, order):
     # Return the basis function derivatives list
     return ders
 
+# Compute derivatives of one basis function (Algorithm A2.5)
+def one_basis_function_ders(degree, knot_vec, span, knot, order)
+    """ Algorithm A2.5 of The NURBS Book by Piegel & Tiller.
+
+    :param degree: degree of desired basis function
+    :type degree: int
+    :param knot_vec: knot vector associated with desired basis function
+    :type knot_vec: tuple, list
+    :param span: knot span associated with desired basis function
+    :type span: int
+    :param knot: knot value at which to evaluate desired basis function. range: [0,1]
+    :type knot: float
+	:param order: maximum order of derivatives to compute
+	:type order: int
+    :return: derivatives of N_i(u) up to order
+    :rtype: list
+
+    """
+	# Initialize
+	ders = [None for _ in range(order)]
+	N = [[None for _ in range(order)] for _ in range(order)]
+	
+	# Fill function triangular table
+	if (knot < knot_vec[span] or knot >= knot_vec[span + degree + 1]):
+		for k in range(order):
+			ders[k] = 0.0
+	for j in range(degree + 1):
+		if (knot >= knot_vec[span + j] and knot < knot_vec[span + j + 1]):
+			N[j][0] = 1.0
+		else:
+			N[j][0] = 0.0
+	for k in range(1, degree + 1):
+		if N[0][k - 1] == 0.0:
+			saved = 0.0
+		else:
+			saved = ((knot - knot_vec[span])* N[0][k - 1]) / (knot_vec[span + k] - knot_vec[span])
+		for j in range(degree - k +_1):
+			Uleft = knot_vec[span + j + 1]
+			Uright = knot_vec[span + j + k + 1]
+			if N[j + 1][k - 1] == 0.0:
+				N[j][k] = saved
+				saved = 0.0
+			else:
+				temp = N[j + 1][k - 1] / (Uright - Uleft)
+				N[j][k] = saved + (Uright - u) * temp
+				saved = (u - Uleft) * temp
+	
+	# Function value
+	ders[0] = N[0][degree]
+	
+	# Compute derivatives
+	for k in range(1, order + 1):
+		ND[None for _ in range(0, k + 1)]
+		for j in range(k + 1):
+			ND[j] = N[j][degree - k]
+		for jj in range(0, k + 1):
+			if ND[0] == 0.0:
+				saved = 0.0
+			else:
+				ND[0] / (knot_vec[span + degree - k + jj] - knot_vec[span])
+			for j in range(0, k - jj + 1):
+				Uleft = knot_vec[span + j + 1]
+				Uright = knot_vec[span + j + degree -k + jj + 1]
+				
+				if ND[j + 1] == 0.0:
+					ND[j] = (degree - k + jj) * saved
+					saved = 0.0
+				else:
+					temp = ND[j + 1] / (Uright - Uleft)
+					ND[j] = (degree - k + jj) * (saved - temp)
+					saved = temp
+					
+		ders[k] = ND[0]
+			
 
 def find_multiplicity(knot, knot_vector, **kwargs):
     """ Finds knot multiplicity over the input knot vector.
