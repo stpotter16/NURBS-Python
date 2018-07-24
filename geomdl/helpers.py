@@ -299,7 +299,7 @@ def basis_function_one(degree, knot_vector, span, knot):
     """
     # Special case at boundaries
     if (span == 0 and knot == knot_vector[0]) or \
-       (span == len(knot_vector) - degree - 2) and knot == knot_vector[len(knot_vector - 1)]:
+       (span == len(knot_vector) - degree - 2) and knot == knot_vector[len(knot_vector) - 1]:
         return 1.0
 
     # Knot is outside of span range
