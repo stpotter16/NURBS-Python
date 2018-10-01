@@ -193,6 +193,7 @@ def test_bspline_curve2d_deriv1():
     # Take the derivative
     der1 = curve.derivatives(u=0.35, order=2)
     curve.evaluator = evaluators.CurveEvaluator2()
+
     der2 = curve.derivatives(u=0.35, order=2)
 
     assert abs(der1[0][0] - der2[0][0]) < GEOMDL_DELTA

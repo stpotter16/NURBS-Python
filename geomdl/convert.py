@@ -1,7 +1,7 @@
 """
 .. module:: convert
     :platform: Unix, Windows
-    :synopsis: Provides BSpline - NURBS conversion functionality
+    :synopsis: Provides BSpline to NURBS conversion functionality
 
 .. moduleauthor:: Onur Rauf Bingol <orbingol@gmail.com>
 
@@ -9,7 +9,6 @@
 
 from . import BSpline
 from . import NURBS
-from . import compatibility
 
 
 def bspline_to_nurbs(obj):

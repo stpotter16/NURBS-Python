@@ -1,13 +1,13 @@
 """
 .. module:: curve2d
     :platform: Unix, Windows
-    :synopsis: Provides commonly used 2D curve shapes generated via NURBS-Python
+    :synopsis: Provides common 2D curve shapes
 
 .. moduleauthor:: Onur Rauf Bingol <orbingol@gmail.com>
 
 """
 
-from . import NURBS
+from geomdl import NURBS
 
 
 # Generates a NURBS circle from 9 control points

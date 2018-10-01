@@ -1,20 +1,20 @@
 """
 .. module:: helpers
     :platform: Unix, Windows
-    :synopsis: Evaluation utility functions
+    :synopsis: Evaluation helper functions
 
 .. moduleauthor:: Onur Rauf Bingol <orbingol@gmail.com>
 
 """
 
 
-def find_span_binsearch(degree, knot_vector, num_ctrlpts, knot, tol=0.001):
+def find_span_binsearch(degree, knot_vector, num_ctrlpts, knot, **kwargs):
     """ Finds the span of the knot over the input knot vector using binary search.
 
     Implementation of Algorithm A2.1 from The NURBS Book by Piegl & Tiller.
 
     The NURBS Book states that the knot span index always starts from zero, i.e. for a knot vector [0, 0, 1, 1];
-    if FindSpan returns 1, then the knot is between the internal [0, 1).
+    if FindSpan returns 1, then the knot is between the interval [0, 1).
 
     :param degree: degree
     :type degree: int
@@ -23,26 +23,32 @@ def find_span_binsearch(degree, knot_vector, num_ctrlpts, knot, tol=0.001):
     :param num_ctrlpts: number of control points
     :type num_ctrlpts: int
     :param knot: knot
-    :param knot: knot
     :type knot: float
-    :param tol: tolerance value for equality checking
-    :type tol: float
     :return: span of the knot over the knot vector
     :rtype: int
     """
-    # Number of knots; m + 1
-    # Number of control points; n + 1
-    # n = m - p - 1; where p = degree
-    # m = len(knot_vector) - 1
-    # n = m - degree - 1
+    # Get tolerance value
+    tol = kwargs.get('tol', 10e-6)
+
+    # In The NURBS Book; number of knots = m + 1, number of control points = n + 1, p = degree
+    # All knot vectors should follow the rule: m = p + n + 1
     n = num_ctrlpts - 1
     if abs(knot_vector[n + 1] - knot) <= tol:
         return n
 
+    # Set max and min positions of the array to be searched
     low = degree
-    high = n + 1
-    mid = int((low + high) / 2)
+    high = num_ctrlpts
 
+    # The division could return a float value which makes it impossible to use as an array index
+    mid = (low + high) / 2
+    # Direct int casting would cause numerical errors due to discarding the significand figures (digits after the dot)
+    # The round function could return unexpected results, so we add the floating point with some small number
+    # This addition would solve the issues caused by the division operation and how Python stores float numbers.
+    # E.g. round(13/2) = 6 (expected to see 7)
+    mid = int(round(mid + tol))
+
+    # Search for the span
     while (knot < knot_vector[mid]) or (knot >= knot_vector[mid + 1]):
         if knot < knot_vector[mid]:
             high = mid
@@ -53,11 +59,13 @@ def find_span_binsearch(degree, knot_vector, num_ctrlpts, knot, tol=0.001):
     return mid
 
 
-def find_span(knot_vector, num_ctrlpts, knot):
+def find_span_linear(degree, knot_vector, num_ctrlpts, knot, **kwargs):
     """ Finds the span of a single knot over the knot vector using linear search.
 
     Alternative implementation for the Algorithm A2.1 from The NURBS Book by Piegl & Tiller.
 
+    :param degree: degree
+    :type degree: int
     :param knot_vector: knot vector
     :type knot_vector: list, tuple
     :param num_ctrlpts: number of control points
@@ -74,22 +82,47 @@ def find_span(knot_vector, num_ctrlpts, knot):
     return span - 1
 
 
-def find_spans(knot_vector, num_ctrlpts, knots):
+def find_spans(degree, knot_vector, num_ctrlpts, knots, func=find_span_linear):
     """ Finds spans of a list of knots over the knot vector.
 
+    :param degree: degree
+    :type degree: int
     :param knot_vector: knot vector
     :type knot_vector: list, tuple
     :param num_ctrlpts: number of control points
     :type num_ctrlpts: int
     :param knots: list of knots
     :type knots: list, tuple
+    :param func: function to evaluate span finding operation
     :return: list of spans
     :rtype: list
     """
     spans = []
     for knot in knots:
-        spans.append(find_span(knot_vector, num_ctrlpts, knot))
+        spans.append(func(degree, knot_vector, num_ctrlpts, knot))
     return spans
+
+
+def find_multiplicity(knot, knot_vector, **kwargs):
+    """ Finds knot multiplicity over the knot vector.
+
+    :param knot: knot
+    :type knot: float
+    :param knot_vector: knot vector
+    :type knot_vector: list, tuple
+    :return: multiplicity of the knot
+    :rtype: int
+    """
+    # Get tolerance value
+    tol = kwargs.get('tol', 0.001)
+
+    mult = 0  # initial multiplicity
+
+    for kv in knot_vector:
+        if abs(knot - kv) <= tol:
+            mult += 1
+
+    return mult
 
 
 def basis_function(degree, knot_vector, span, knot):
@@ -259,27 +292,6 @@ def basis_function_ders(degree, knot_vector, span, knot, order):
     # Return the basis function derivatives list
     return ders
 
-			
-def find_multiplicity(knot, knot_vector, **kwargs):
-    """ Finds knot multiplicity over the knot vector.
-
-    :param knot: knot
-    :type knot: float
-    :param knot_vector: knot vector
-    :type knot_vector: list, tuple
-    :return: multiplicity of the knot
-    :rtype: int
-    """
-    tol = kwargs.get('tol', 0.001)
-
-    mult = 0  # initial multiplicity
-
-    for kv in knot_vector:
-        if abs(knot - kv) <= tol:
-            mult += 1
-
-    return mult
-
 
 def basis_function_one(degree, knot_vector, span, knot):
     """ Computes the value of a basis function for a knot.
@@ -299,7 +311,7 @@ def basis_function_one(degree, knot_vector, span, knot):
     """
     # Special case at boundaries
     if (span == 0 and knot == knot_vector[0]) or \
-       (span == len(knot_vector) - degree - 2) and knot == knot_vector[len(knot_vector) - 1]:
+            (span == len(knot_vector) - degree - 2) and knot == knot_vector[len(knot_vector) - 1]:
         return 1.0
 
     # Knot is outside of span range
@@ -354,7 +366,6 @@ def basis_function_ders_one(degree, knot_vector, span, knot, order):
     :return: basis function derivatives values
     :rtype: list
     """
-
     ders = [0.0 for _ in range(0, order + 1)]
 
     # Knot is outside of span range
@@ -415,7 +426,7 @@ def basis_function_ders_one(degree, knot_vector, span, knot, order):
             # Index of the Basis function derivatives
             for j in range(0, k - jj + 1):
                 Uleft = knot_vector[span + j + 1]
-                # Wrong in The Nurbs Book: -k is missing.
+                # Wrong in The NURBS Book: -k is missing.
                 # The right expression is the same as for saved with the added j offset
                 Uright = knot_vector[span + j + degree - k + jj + 1]
 

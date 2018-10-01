@@ -1,4 +1,4 @@
-""" NURBS-Python Shapes Component
+""" Shapes Module for NURBS-Python
 
 .. moduleauthor:: Onur Rauf Bingol <orbingol@gmail.com>
 
@@ -7,6 +7,3 @@
 __author__ = "Onur Rauf Bingol"
 __version__ = "1.0.0"
 __license__ = "MIT"
-
-
-from geomdl import NURBS

@@ -10,28 +10,32 @@ NURBS-Python (geomdl)
 Introduction
 ============
 
-This project aims to implement Non-Uniform Rational B-Spline (NURBS) curve and surface computation algorithms in pure
-Python with minimum possible dependencies. The library is fully object-oriented and does **not** depend on any external
-libraries.
+NURBS-Python (geomdl) is an object-oriented B-Spline and NURBS surface and curve library for Python with
+implementations of advanced computation algorithms in an extensible way.
+It comes with on-the-fly shape visualization options, knot vector and surface grid generators, and more.
+
+NURBS-Python is a pure Python library, therefore there are no external C/C++ or FORTRAN dependencies or any compilation
+steps during installation. It is tested with Python v2.7.x, Python v3.4.x and later versions.
 
 Branch Information
 ------------------
 
-* ``master`` branch contains code for NURBS-Python (geomdl) v4.x series
-* ``3.x`` branch contains code for NURBS-Python v3.x series
-* ``2.x`` branch contains code for NURBS-Python v2.x series
+The latest branch information can be found on the `wiki page <https://github.com/orbingol/NURBS-Python/wiki>`_.
 
 Citing NURBS-Python
 -------------------
 
-Please see the `Citing <http://nurbs-python.readthedocs.io/en/latest/citing.html>`_ section of the documentation
-for more details.
+The citation options (BiBTeX entry, DOI name and others) can be found on the
+`Citing <http://nurbs-python.readthedocs.io/en/latest/citing.html>`_ section of the documentation.
 
-Using NURBS-Python
-==================
+NURBS-Python Usage Examples and Documentation
+---------------------------------------------
 
 * **Examples**: https://github.com/orbingol/NURBS-Python_Examples
 * **Documentation**: http://nurbs-python.readthedocs.io/
+
+Using NURBS-Python
+==================
 
 Installation and Testing
 ------------------------
@@ -42,8 +46,10 @@ of the documentation.
 Contributions and Issues
 ------------------------
 
-Please see the `documentation <http://nurbs-python.readthedocs.io/en/latest/q_a.html#issues-and-reporting>`_
-for details.
+All contributions (new algorithms, examples, tests, improving documentation, PR a task from the issue tracker, ...)
+are welcomed. For details, please see the
+`Issues and Reporting <http://nurbs-python.readthedocs.io/en/latest/q_a.html#issues-and-reporting>`_ section of the
+documentation.
 
 Author
 ======
@@ -53,7 +59,7 @@ Author
 License
 =======
 
-NURBS-Python is licensed under the `MIT License <LICENSE>`_.
+NURBS-Python is a free and open-source project and it is licensed under the `MIT License <LICENSE>`_.
 
 Acknowledgments
 ===============
